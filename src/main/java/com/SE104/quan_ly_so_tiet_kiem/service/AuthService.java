@@ -44,6 +44,7 @@ public class AuthService {
 
 
     private final Map<String, PasscodeEntry> passcodeStore = new HashMap<>();
+    private final Map<String, PasscodeEntry> signupPasscodeStore = new HashMap<>();
     private static final long PASSCODE_EXPIRY_MS = 5 * 60 * 1000; 
 
     private static class PasscodeEntry {
@@ -168,5 +169,63 @@ public class AuthService {
         nguoiDung.setMatKhau(passwordEncoder.encode(newPassword));
         nguoiDungRepository.save(nguoiDung);
         passcodeStore.remove(email); 
+    }
+
+    public void sendSignupPasscode(String email) {
+        if (nguoiDungRepository.existsByEmail(email)) {
+            throw new IllegalArgumentException("Email đã được sử dụng.");
+        }
+        String passcode = String.format("%06d", new Random().nextInt(1000000));
+        signupPasscodeStore.put(email, new PasscodeEntry(passcode));
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(email);
+        message.setSubject("Mã xác minh đăng ký tài khoản - Monnes");
+        message.setText("Mã xác minh đăng ký của bạn là: " + passcode + "\nMã này có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này.");
+        try {
+            mailSender.send(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi khi gửi email xác minh. Vui lòng thử lại sau.");
+        }
+    }
+
+    public void verifySignupPasscode(String email, String passcode) {
+        PasscodeEntry entry = signupPasscodeStore.get(email);
+        if (entry == null) {
+            throw new IllegalArgumentException("Yêu cầu mã xác minh không hợp lệ hoặc đã hết hạn. Vui lòng thử lại.");
+        }
+        if (entry.isExpired()) {
+            signupPasscodeStore.remove(email);
+            throw new IllegalArgumentException("Mã xác minh đã hết hạn. Vui lòng yêu cầu mã mới.");
+        }
+        if (!entry.passcode.equals(passcode)) {
+            throw new IllegalArgumentException("Mã xác minh không đúng.");
+        }
+        entry.verified = true;
+    }
+
+    @Transactional
+    public UserResponse completeSignup(RegisterRequest request) {
+        PasscodeEntry entry = signupPasscodeStore.get(request.getEmail());
+        if (entry == null || !entry.verified || entry.isExpired()) {
+            if(entry != null && entry.isExpired()) signupPasscodeStore.remove(request.getEmail());
+            throw new IllegalArgumentException("Bạn chưa xác thực email hoặc mã xác minh đã hết hạn. Vui lòng xác thực lại email.");
+        }
+        if (!request.getPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("Mật khẩu xác nhận không khớp.");
+        }
+        if (nguoiDungRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalArgumentException("Email đã được sử dụng.");
+        }
+        if (nguoiDungRepository.existsBySdt(request.getPhoneNumber())) {
+            throw new IllegalArgumentException("Số điện thoại đã được sử dụng.");
+        }
+        NguoiDung nguoiDung = new NguoiDung();
+        nguoiDung.setEmail(request.getEmail());
+        nguoiDung.setSdt(request.getPhoneNumber());
+        nguoiDung.setMatKhau(passwordEncoder.encode(request.getPassword()));
+        nguoiDung.setVaiTro(1); // USER
+        NguoiDung savedNguoiDung = nguoiDungRepository.save(nguoiDung);
+        signupPasscodeStore.remove(request.getEmail());
+        return userService.mapToUserResponse(savedNguoiDung);
     }
 }

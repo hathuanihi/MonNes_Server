@@ -66,4 +66,28 @@ public class AuthController {
         authService.resetPassword(request.getEmail(), request.getNewPassword(), request.getConfirmPassword());
         return ResponseEntity.ok(new MessageResponse("Đặt lại mật khẩu thành công."));
     }
+
+    @Operation(summary = "Gửi passcode về email để bắt đầu đăng ký tài khoản")
+    @PostMapping("/signup/request-passcode")
+    public ResponseEntity<MessageResponse> requestSignupPasscode(@Valid @RequestBody ForgotPasswordRequest request) {
+        logger.info("Request: Signup passcode for email: {}", request.getEmail());
+        authService.sendSignupPasscode(request.getEmail());
+        return ResponseEntity.ok(new MessageResponse("Mã xác minh đã được gửi đến email của bạn."));
+    }
+
+    @Operation(summary = "Xác thực passcode đăng ký tài khoản")
+    @PostMapping("/signup/verify-passcode")
+    public ResponseEntity<MessageResponse> verifySignupPasscode(@Valid @RequestBody VerifyPasscodeRequest request) {
+        logger.info("Request: Verify signup passcode for email: {}", request.getEmail());
+        authService.verifySignupPasscode(request.getEmail(), request.getPasscode());
+        return ResponseEntity.ok(new MessageResponse("Xác minh mã passcode thành công. Bạn có thể tiếp tục đăng ký tài khoản."));
+    }
+
+    @Operation(summary = "Hoàn tất đăng ký tài khoản sau khi xác thực passcode")
+    @PostMapping("/signup/complete")
+    public ResponseEntity<?> completeSignup(@Valid @RequestBody RegisterRequest request) {
+        logger.info("Request: Complete signup for email: {}", request.getEmail());
+        UserResponse response = authService.completeSignup(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
 }
