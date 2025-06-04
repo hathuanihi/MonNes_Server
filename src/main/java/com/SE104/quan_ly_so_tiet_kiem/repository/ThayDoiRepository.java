@@ -12,6 +12,10 @@ import java.util.List;
 @Repository
 public interface ThayDoiRepository extends JpaRepository<ThayDoi, Integer> {
 
+    boolean existsBySoTietKiemSanPham_MaSo(Integer maSo); 
+
+    List<ThayDoi> findBySoTietKiemSanPham_MaSo(Integer maSo);
+
     List<ThayDoi> findByNguoiDungAdmin(NguoiDung nguoiDungAdmin);
 
     List<ThayDoi> findBySoTietKiemSanPham(SoTietKiem soTietKiemSanPham);

@@ -7,6 +7,7 @@ import com.SE104.quan_ly_so_tiet_kiem.entity.LoaiSoTietKiem;
 import com.SE104.quan_ly_so_tiet_kiem.entity.NguoiDung;
 import com.SE104.quan_ly_so_tiet_kiem.entity.SoTietKiem;
 import com.SE104.quan_ly_so_tiet_kiem.entity.ThayDoi;
+import com.SE104.quan_ly_so_tiet_kiem.repository.GiaoDichRepository;
 import com.SE104.quan_ly_so_tiet_kiem.repository.LoaiSoTietKiemRepository;
 import com.SE104.quan_ly_so_tiet_kiem.repository.MoSoTietKiemRepository;
 import com.SE104.quan_ly_so_tiet_kiem.repository.NguoiDungRepository;
@@ -19,6 +20,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -26,6 +30,8 @@ import java.time.LocalDate;
 
 @Service
 public class SoTietKiemService {
+
+    private static final Logger logger = LoggerFactory.getLogger(SoTietKiemService.class);
 
     @Autowired
     private SoTietKiemRepository soTietKiemRepository;
@@ -37,6 +43,8 @@ public class SoTietKiemService {
     private LoaiSoTietKiemRepository loaiSoTietKiemDanhMucRepository;
     @Autowired 
     private MoSoTietKiemRepository moSoTietKiemRepository;
+    @Autowired
+    private GiaoDichRepository giaoDichRepository;
 
 
     @Transactional(readOnly = true)
@@ -143,25 +151,33 @@ public class SoTietKiemService {
     }
 
     @Transactional
-    public void deleteSoTietKiem(Integer id, Integer adminId) {
-        NguoiDung admin = nguoiDungRepository.findById(adminId)
-                .orElseThrow(() -> new EntityNotFoundException("Admin không tồn tại với ID: " + adminId));
-        if (admin.getVaiTro() != 0) {
-            throw new SecurityException("Người dùng không có quyền thực hiện hành động này.");
-        }
-        
-        SoTietKiem existing = soTietKiemRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Sản phẩm sổ tiết kiệm không tồn tại với ID: " + id));
-        
-        // Kiểm tra xem sản phẩm có đang được sử dụng bởi MoSoTietKiem nào không
-        if (moSoTietKiemRepository.existsBySoTietKiemSanPham_MaSo(id)) {
-            throw new IllegalStateException("Không thể xóa sản phẩm sổ tiết kiệm ID " + id + " vì đang có sổ tiết kiệm của người dùng sử dụng sản phẩm này.");
-        }
-        // Xóa các log thay đổi liên quan đến sản phẩm này trước
-        thayDoiRepository.deleteBySoTietKiemSanPham(existing);
+    public void deleteSoTietKiem(Integer maSo, Integer adminId) {
+        logger.info("Admin ID {} attempting to delete savings product with ID: {}", adminId, maSo);
 
-        soTietKiemRepository.delete(existing);
-        logThayDoi(existing, null, admin, "Xóa sản phẩm sổ tiết kiệm ID: " + id + ", Tên: " + existing.getTenSo());
+        SoTietKiem soTietKiem = soTietKiemRepository.findById(maSo)
+                .orElseThrow(() -> {
+                    logger.warn("Savings product with ID: {} not found for deletion by Admin ID: {}", maSo, adminId);
+                    return new EntityNotFoundException("Không tìm thấy sản phẩm sổ tiết kiệm với ID: " + maSo);
+                });
+
+        if (moSoTietKiemRepository.existsBySoTietKiemSanPham_MaSo(maSo)) {
+            logger.warn("Deletion failed for savings product ID {}: Referenced by open savings accounts (MoSoTietKiem). Admin ID: {}", maSo, adminId);
+            throw new IllegalStateException("Không thể xóa sản phẩm sổ tiết kiệm này (ID: " + maSo + ") vì đang có các sổ tiết kiệm đã mở sử dụng sản phẩm này.");
+        }
+
+        if (giaoDichRepository.existsBySanPhamSoTietKiem_MaSo(maSo)) {
+            logger.warn("Deletion failed for savings product ID {}: Referenced by transactions (GiaoDich). Admin ID: {}", maSo, adminId);
+            throw new IllegalStateException("Không thể xóa sản phẩm sổ tiết kiệm này (ID: " + maSo + ") vì có các giao dịch liên quan đến sản phẩm này.");
+        }
+        List<com.SE104.quan_ly_so_tiet_kiem.entity.ThayDoi> logsToDelete = thayDoiRepository.findBySoTietKiemSanPham_MaSo(maSo);
+        if (!logsToDelete.isEmpty()) {
+            logger.info("Deleting {} change logs associated with savings product ID {} by Admin ID: {}", logsToDelete.size(), maSo, adminId);
+            thayDoiRepository.deleteAll(logsToDelete);
+        }
+
+        soTietKiemRepository.delete(soTietKiem);
+        logger.info("Admin ID {} successfully deleted savings product with ID: {}", adminId, maSo);
+        
     }
 
     private void validateSoTietKiemProduct(SoTietKiem soTietKiem) {
