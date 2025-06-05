@@ -86,7 +86,7 @@ public class PhieuGuiTienService {
         PhieuGuiTien savedPhieu = phieuGuiTienRepository.save(phieuGuiTien);
         moSoTietKiem.setSoDu(moSoTietKiem.getSoDu().add(amount));
         moSoTietKiemRepository.save(moSoTietKiem);
-        giaoDichService.saveTransaction(amount, TransactionType.DEPOSIT, moSoTietKiem);
+        giaoDichService.saveTransaction(amount, TransactionType.DEPOSIT, moSoTietKiem, LocalDate.now(this.clock));
         return savedPhieu;
     }
 }

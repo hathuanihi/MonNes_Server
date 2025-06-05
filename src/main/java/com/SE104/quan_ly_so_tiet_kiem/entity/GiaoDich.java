@@ -21,7 +21,7 @@ public class GiaoDich {
     private BigDecimal soTien;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "loai_giao_dich", nullable = false, columnDefinition = "enum('DEPOSIT','WITHDRAW')")
+    @Column(name = "loai_giao_dich", nullable = false, columnDefinition = "enum('DEPOSIT','WITHDRAW', 'INTEREST')")
     private TransactionType loaiGiaoDich;
 
     @Column(name = "ngay_thuc_hien", nullable = false)

@@ -16,7 +16,7 @@ import java.time.format.DateTimeParseException;
 
 @RestController
 @RequestMapping("/api/debug/clock")
-@Profile({"dev", "test"}) // CHỈ KÍCH HOẠT CHO PROFILE dev HOẶC test
+@Profile({"dev", "test"}) 
 public class DebugClockController {
 
     private static final Logger logger = LoggerFactory.getLogger(DebugClockController.class);

@@ -10,7 +10,7 @@ import com.SE104.quan_ly_so_tiet_kiem.repository.NguoiDungRepository;
 import com.SE104.quan_ly_so_tiet_kiem.repository.SoTietKiemRepository;
 
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional; 
+import org.springframework.transaction.annotation.Transactional; 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +31,7 @@ public class MoSoTietKiemService {
     // private NguoiDungRepository nguoiDungRepository;
     // @Autowired
     // private PhieuGuiTienService phieuGuiTienService;
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(MoSoTietKiemService.class);
     private final MoSoTietKiemRepository moSoTietKiemRepository;
     private final SoTietKiemRepository soTietKiemRepository;
     private final NguoiDungRepository nguoiDungRepository;
@@ -50,7 +51,7 @@ public class MoSoTietKiemService {
         this.clock = clock;
     }
 
-    @Transactional(Transactional.TxType.SUPPORTS) // readOnly = true cho Spring
+    @Transactional(readOnly = true) // readOnly = true cho Spring
     public List<MoSoTietKiemResponse> getUserSavingsAccounts(Integer userId) {
         // NguoiDung nguoiDung = nguoiDungRepository.findById(userId) 
         //     .orElseThrow(() -> new EntityNotFoundException("Người dùng không tồn tại với ID: " + userId));
@@ -60,7 +61,7 @@ public class MoSoTietKiemService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional(Transactional.TxType.SUPPORTS)
+    @Transactional(readOnly = true)
     public MoSoTietKiemResponse getSavingsAccountDetails(Integer moSoTietKiemId, Integer userId) {
         MoSoTietKiem moSoTietKiem = moSoTietKiemRepository.findById(moSoTietKiemId)
                 .orElseThrow(() -> new EntityNotFoundException("Sổ tiết kiệm không tồn tại với ID: " + moSoTietKiemId));
@@ -70,7 +71,7 @@ public class MoSoTietKiemService {
         return mapEntityToResponse(moSoTietKiem);
     }
 
-    @Transactional(Transactional.TxType.REQUIRED) 
+    @Transactional(readOnly = false) 
     public MoSoTietKiemResponse createSavingsAccount(MoSoTietKiemRequest request, Integer userId) {
         NguoiDung nguoiDung = nguoiDungRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Người dùng không tồn tại với ID: " + userId));
@@ -169,5 +170,28 @@ public class MoSoTietKiemService {
             moSo.setSoDu(BigDecimal.ZERO);
             moSoTietKiemRepository.save(moSo);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public MoSoTietKiem validateUserAccessAndGetAccount(Integer moSoId, Integer userId) {
+        logger.debug("Validating access for user ID {} to savings account ID {}", userId, moSoId);
+        NguoiDung nguoiDung = nguoiDungRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.warn("User not found with ID: {} while validating access to account ID: {}", userId, moSoId);
+                    return new EntityNotFoundException("Người dùng không tồn tại với ID: " + userId);
+                });
+        
+        MoSoTietKiem moSo = moSoTietKiemRepository.findByMaMoSoAndNguoiDung(moSoId, nguoiDung)
+                .orElseThrow(() -> {
+                    logger.warn("Savings account ID {} not found or does not belong to user ID {}", moSoId, userId);
+                    return new EntityNotFoundException("Sổ tiết kiệm ID " + moSoId + " không tồn tại hoặc không thuộc về người dùng này.");
+                });
+
+        // Bỏ kiểm tra DA_DONG ở đây nếu PhieuGuiTienService và PhieuRutTienService tự kiểm tra
+        // if (moSo.getTrangThai() == MoSoTietKiem.TrangThaiMoSo.DA_DONG) {
+        //     logger.warn("Attempt to access closed savings account ID {} by user ID {}", moSoId, userId);
+        //     throw new IllegalStateException("Sổ tiết kiệm ID " + moSoId + " đã đóng, không thể thực hiện giao dịch.");
+        // }
+        return moSo;
     }
 }

@@ -22,4 +22,10 @@ public class GiaoDichDTO {
     private String tenSanPhamSoTietKiem; 
 
     // private BigDecimal laiSuatTaiThoiDiemGiaoDich; 
+    public LocalDate getNgayGD() {
+        return ngayGD;
+    }
+    public void setNgayGD(LocalDate ngayGD) {
+        this.ngayGD = ngayGD;
+    }
 }

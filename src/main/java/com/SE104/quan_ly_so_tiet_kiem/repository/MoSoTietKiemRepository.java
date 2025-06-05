@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,4 +37,23 @@ public interface MoSoTietKiemRepository extends JpaRepository<MoSoTietKiem, Inte
     BigDecimal sumSoDuByTrangThai(@Param("trangThai") MoSoTietKiem.TrangThaiMoSo trangThai);
 
     boolean existsBySoTietKiemSanPham_MaSo(Integer maSoSanPham);
+
+    List<MoSoTietKiem> findByTrangThaiAndNgayDaoHanLessThanEqual(MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate date);
+    
+    List<MoSoTietKiem> findBySoTietKiemSanPham_KyHanAndTrangThai(Integer kyHan, MoSoTietKiem.TrangThaiMoSo trangThai);
+
+    Optional<MoSoTietKiem> findByMaMoSoAndNguoiDung(Integer maMoSo, NguoiDung nguoiDung);
+
+    List<MoSoTietKiem> findByNguoiDungAndTrangThaiAndSoTietKiemSanPham_KyHan(NguoiDung nguoiDung, MoSoTietKiem.TrangThaiMoSo trangThai, Integer kyHan);
+    List<MoSoTietKiem> findByTrangThaiAndNgayDaoHan(MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayDaoHan);
+
+    List<MoSoTietKiem> findByTrangThaiAndNgayTraLaiKeTiepLessThanEqual(
+        MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayTraLaiKeTiep);
+
+    List<MoSoTietKiem> findBySoTietKiemSanPham_KyHanAndTrangThaiAndNgayTraLaiKeTiepLessThanEqual(
+        Integer kyHan, MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayTraLaiKeTiep);
+
+    List<MoSoTietKiem> findBySoTietKiemSanPham_KyHanGreaterThanAndTrangThaiAndNgayTraLaiKeTiepLessThanEqual(
+        Integer kyHan, MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayTraLaiKeTiep);
+
 }

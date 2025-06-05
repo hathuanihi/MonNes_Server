@@ -3,151 +3,174 @@ package com.SE104.quan_ly_so_tiet_kiem.service;
 import com.SE104.quan_ly_so_tiet_kiem.dto.GiaoDichDTO;
 import com.SE104.quan_ly_so_tiet_kiem.entity.GiaoDich;
 import com.SE104.quan_ly_so_tiet_kiem.entity.MoSoTietKiem;
-import com.SE104.quan_ly_so_tiet_kiem.entity.NguoiDung;
-import com.SE104.quan_ly_so_tiet_kiem.entity.SoTietKiem; 
 import com.SE104.quan_ly_so_tiet_kiem.model.TransactionType;
 import com.SE104.quan_ly_so_tiet_kiem.repository.GiaoDichRepository;
 import com.SE104.quan_ly_so_tiet_kiem.repository.MoSoTietKiemRepository;
-
-import jakarta.persistence.EntityNotFoundException;
-import org.slf4j.Logger; 
-import org.slf4j.LoggerFactory; 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification; 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.criteria.Predicate; 
+
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class GiaoDichService {
     private static final Logger logger = LoggerFactory.getLogger(GiaoDichService.class);
-    private final Clock clock;
+    
+    private final GiaoDichRepository giaoDichRepository;
+    // private final NguoiDungRepository nguoiDungRepository; 
+    private final MoSoTietKiemRepository moSoTietKiemRepository;
+    private final Clock clock; 
 
     @Autowired
-    private GiaoDichRepository giaoDichRepository;
-    @Autowired
-    private MoSoTietKiemRepository moSoTietKiemRepository;
-    @Autowired
-    public GiaoDichService(Clock clock, 
-                           GiaoDichRepository giaoDichRepository,
-                           MoSoTietKiemRepository moSoTietKiemRepository) {
+    public GiaoDichService(GiaoDichRepository giaoDichRepository, 
+                            MoSoTietKiemRepository moSoTietKiemRepository, 
+                           Clock clock) {
         this.giaoDichRepository = giaoDichRepository;
         this.moSoTietKiemRepository = moSoTietKiemRepository;
+        // this.nguoiDungRepository = nguoiDungRepository;
         this.clock = clock;
     }
 
+    // Phương thức cho USER - Lấy giao dịch gần đây
+    @Transactional(readOnly = true)
+    public List<GiaoDichDTO> getRecentTransactionsForUser(Integer userId, int limit) {
+        logger.info("Fetching recent {} transactions for user ID: {}", limit, userId);
+        Pageable pageable = PageRequest.of(0, limit, Sort.by("ngayThucHien").descending().and(Sort.by("id").descending()));
+        List<GiaoDich> transactions = giaoDichRepository.findRecentTransactionsByNguoiDungMaND(userId, pageable);
+        return transactions.stream().map(this::convertToGiaoDichDTO).collect(Collectors.toList());
+    }
+
+    // Phương thức cho USER - Lấy chi tiết một giao dịch
+    @Transactional(readOnly = true)
+    public GiaoDichDTO getTransactionDetailsByUser(Long transactionId, Integer userId) {
+        logger.info("Fetching transaction ID: {} for user ID: {}", transactionId, userId);
+        GiaoDich transaction = giaoDichRepository.findByIdAndNguoiDungMaND(transactionId, userId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy giao dịch ID: " + transactionId + " cho người dùng này."));
+        return convertToGiaoDichDTO(transaction);
+    }
+
+    // Phương thức cho USER - Lấy tất cả giao dịch của một sổ tiết kiệm cụ thể
+    @Transactional(readOnly = true)
+    public List<GiaoDichDTO> getTransactionsForMoSoTietKiem(Integer moSoId, Integer userId) {
+        logger.info("Fetching all transactions for savings account ID: {} of user ID: {}", moSoId, userId);
+        // Kiểm tra xem sổ có thuộc user không
+        moSoTietKiemRepository.findByMaMoSoAndNguoiDung_MaND(moSoId, userId)
+            .orElseThrow(() -> new SecurityException("Không có quyền truy cập sổ tiết kiệm ID: " + moSoId));
+            
+        List<GiaoDich> transactions = giaoDichRepository.findByMoSoTietKiem_MaMoSoAndNguoiDung_MaND(moSoId, userId);
+        return transactions.stream().map(this::convertToGiaoDichDTO).collect(Collectors.toList());
+    }
+
     @Transactional
-    public GiaoDich saveTransaction(BigDecimal soTien, TransactionType loaiGiaoDich, MoSoTietKiem moSoTietKiem) {
+    public GiaoDich saveTransaction(BigDecimal soTien, 
+                                    TransactionType loaiGiaoDich, 
+                                    MoSoTietKiem moSoTietKiem, 
+                                    LocalDate ngayThucHienInput) {
         if (moSoTietKiem == null) {
-            logger.error("Không thể tạo giao dịch: Thông tin Sổ Tiết Kiệm Mở (MoSoTietKiem) là null.");
-            throw new IllegalArgumentException("Sổ tiết kiệm không được null để ghi giao dịch.");
+            logger.error("MoSoTietKiem cannot be null when saving a transaction.");
+            throw new IllegalArgumentException("Sổ tiết kiệm không được để trống khi ghi giao dịch.");
         }
         if (moSoTietKiem.getSoTietKiemSanPham() == null) {
-            logger.error("Không thể tạo giao dịch cho MoSoTietKiem ID {}: Thông tin Sản Phẩm Sổ Tiết Kiệm (SoTietKiemSanPham) là null.", moSoTietKiem.getMaMoSo());
-            throw new IllegalStateException("Không thể xác định sản phẩm sổ tiết kiệm cho giao dịch do MoSoTietKiem không có thông tin SoTietKiemSanPham.");
+             logger.error("SoTietKiemSanPham (product) cannot be null in MoSoTietKiem ID {} when saving a transaction.", moSoTietKiem.getMaMoSo());
+            throw new IllegalStateException("Không thể xác định sản phẩm sổ tiết kiệm cho giao dịch vì sản phẩm của sổ mở là null.");
         }
 
         GiaoDich giaoDich = new GiaoDich();
-        giaoDich.setSoTien(soTien);
+        giaoDich.setSoTien(soTien.setScale(2, RoundingMode.HALF_UP)); // Làm tròn số tiền
         giaoDich.setLoaiGiaoDich(loaiGiaoDich);
-        giaoDich.setNgayThucHien(LocalDate.now(this.clock));
         giaoDich.setMoSoTietKiem(moSoTietKiem);
-        giaoDich.setSanPhamSoTietKiem(moSoTietKiem.getSoTietKiemSanPham()); 
-
-        logger.info("Đang lưu giao dịch: Loại {}, Số tiền {}, cho MoSoTietKiem ID {}", loaiGiaoDich, soTien, moSoTietKiem.getMaMoSo());
-        return giaoDichRepository.save(giaoDich);
+        giaoDich.setSanPhamSoTietKiem(moSoTietKiem.getSoTietKiemSanPham());
+        giaoDich.setNgayThucHien(ngayThucHienInput != null ? ngayThucHienInput : LocalDate.now(this.clock));
+        
+        GiaoDich savedGiaoDich = giaoDichRepository.save(giaoDich);
+        logger.info("Saved transaction: ID {}, Type {}, Amount {}, Account ID {}, Date {}", 
+                    savedGiaoDich.getId(), loaiGiaoDich, soTien, moSoTietKiem.getMaMoSo(), giaoDich.getNgayThucHien());
+        return savedGiaoDich;
     }
 
     @Transactional(readOnly = true)
-    public Page<GiaoDichDTO> getAllSystemTransactions(Pageable pageable) {
-        if (pageable.getSort().isUnsorted()) {
-            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("ngayThucHien").descending().and(Sort.by("id").descending()));
-        }
-        Page<GiaoDich> giaoDichPage = giaoDichRepository.findAll(pageable);
-        return giaoDichPage.map(this::mapEntityToDTO);
-    }
+    public Page<GiaoDichDTO> getAllSystemTransactions(Pageable pageable, 
+                                                   String searchTerm, 
+                                                   String transactionType, 
+                                                   LocalDate dateFrom, 
+                                                   LocalDate dateTo) {
+        // Sử dụng Specification để tạo query động dựa trên các filter
+        Specification<GiaoDich> spec = (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
 
-    @Transactional(readOnly = true)
-    public List<GiaoDichDTO> getTransactionsForMoSoTietKiem(Integer moSoTietKiemId, Integer userIdAuth) {
-        MoSoTietKiem moSo = moSoTietKiemRepository.findById(moSoTietKiemId)
-                .orElseThrow(() -> {
-                    logger.warn("Không tìm thấy sổ tiết kiệm với ID: {} khi lấy giao dịch.", moSoTietKiemId);
-                    return new EntityNotFoundException("Sổ tiết kiệm không tồn tại ID: " + moSoTietKiemId);
-                });
-        
-        if (moSo.getNguoiDung() == null) {
-            logger.error("Sổ tiết kiệm ID {} không có thông tin người dùng.", moSoTietKiemId);
-            throw new IllegalStateException("Sổ tiết kiệm ID " + moSoTietKiemId + " không có thông tin người dùng hợp lệ.");
-        }
-        if (!moSo.getNguoiDung().getMaND().equals(userIdAuth)) {
-            logger.warn("Người dùng ID {} cố gắng truy cập giao dịch của sổ ID {} không thuộc sở hữu.", userIdAuth, moSoTietKiemId);
-            throw new SecurityException("Không có quyền xem giao dịch của sổ tiết kiệm này.");
-        }
-        
-        List<GiaoDich> giaoDichList = giaoDichRepository.findByMoSoTietKiemOrderByNgayThucHienDesc(moSo);
-        return giaoDichList.stream().map(this::mapEntityToDTO).collect(Collectors.toList());
+            if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+                String likePattern = "%" + searchTerm.toLowerCase() + "%";
+                predicates.add(criteriaBuilder.or(
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("moSoTietKiem").get("nguoiDung").get("tenND")), likePattern),
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("moSoTietKiem").get("tenSoMo")), likePattern),
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("sanPhamSoTietKiem").get("tenSo")), likePattern),
+                    criteriaBuilder.like(root.get("id").as(String.class), likePattern) // Tìm theo ID giao dịch
+                ));
+            }
+
+            if (transactionType != null && !transactionType.trim().isEmpty()) {
+                try {
+                    TransactionType type = TransactionType.valueOf(transactionType.toUpperCase());
+                    predicates.add(criteriaBuilder.equal(root.get("loaiGiaoDich"), type));
+                } catch (IllegalArgumentException e) {
+                    logger.warn("Invalid transaction type filter: {}", transactionType);
+
+                }
+            }
+
+            if (dateFrom != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("ngayThucHien"), dateFrom));
+            }
+            if (dateTo != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("ngayThucHien"), dateTo));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<GiaoDich> giaoDichPage = giaoDichRepository.findAll(spec, pageable);
+        return giaoDichPage.map(this::convertToGiaoDichDTO);
     }
     
-    @Transactional(readOnly = true)
-    public List<GiaoDichDTO> getRecentTransactionsForUser(Integer userId, int limit) {
-        Pageable pageable = PageRequest.of(0, limit, Sort.by("ngayThucHien").descending().and(Sort.by("id").descending()));
-        List<GiaoDich> giaoDichList = giaoDichRepository.findByMoSoTietKiem_NguoiDung_MaNDOrderByNgayThucHienDesc(userId, pageable);
-        return giaoDichList.stream().map(this::mapEntityToDTO).collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public GiaoDichDTO getTransactionDetailsByUser(Long transactionId, Integer userId) {
-        GiaoDich giaoDich = giaoDichRepository.findByIdAndMoSoTietKiem_NguoiDung_MaND(transactionId, userId)
-                .orElseThrow(() -> {
-                    logger.warn("Người dùng ID {} không tìm thấy giao dịch ID {} hoặc không có quyền xem.", userId, transactionId);
-                    return new EntityNotFoundException("Không tìm thấy giao dịch với ID: " + transactionId + " hoặc bạn không có quyền xem giao dịch này.");
-                });
-        return mapEntityToDTO(giaoDich);
-    }
-    
-    @Transactional(readOnly = true) 
-    public GiaoDichDTO mapEntityToDTO(GiaoDich entity) {
+    private GiaoDichDTO convertToGiaoDichDTO(GiaoDich entity) {
         if (entity == null) return null;
         GiaoDichDTO dto = new GiaoDichDTO();
         dto.setIdGiaoDich(entity.getId());
-        dto.setLoaiGiaoDich(entity.getLoaiGiaoDich() == TransactionType.DEPOSIT ? "Gửi tiền" : "Rút tiền");
+        if (entity.getLoaiGiaoDich() != null) {
+            dto.setLoaiGiaoDich(entity.getLoaiGiaoDich().name()); // Hoặc một tên hiển thị tiếng Việt
+        }
         dto.setSoTien(entity.getSoTien());
-        dto.setNgayGD(entity.getNgayThucHien());
-
-        MoSoTietKiem moSo = entity.getMoSoTietKiem(); 
-        if (moSo != null) {
-            try {
-                dto.setMaSoMoTietKiem(moSo.getMaMoSo());
-                dto.setTenSoMoTietKiem(moSo.getTenSoMo());
-                
-                NguoiDung nguoiDungCuaSo = moSo.getNguoiDung(); 
-                if (nguoiDungCuaSo != null) {
-                    dto.setMaKhachHang(nguoiDungCuaSo.getMaND());
-                    dto.setTenKhachHang(nguoiDungCuaSo.getTenND());
-                }
-                
-                SoTietKiem sanPham = entity.getSanPhamSoTietKiem(); 
-                if (sanPham != null) {
-                    dto.setTenSanPhamSoTietKiem(sanPham.getTenSo());
-                } 
-                // else if (moSo.getSoTietKiemSanPham() != null) { 
-                //      dto.setTenSanPhamSoTietKiem(moSo.getSoTietKiemSanPham().getTenSo());
-                // }
-            } catch (org.hibernate.ObjectNotFoundException | jakarta.persistence.EntityNotFoundException e) {
-                logger.error("Lỗi khi truy cập đối tượng liên kết trong mapEntityToDTO cho GiaoDich ID {}: {}", entity.getId(), e.getMessage());
-                dto.setTenKhachHang("N/A");
-                dto.setTenSoMoTietKiem("N/A");
-                dto.setTenSanPhamSoTietKiem("N/A");
+        if (entity.getNgayThucHien() != null) {
+            dto.setNgayGD(entity.getNgayThucHien()); // Format YYYY-MM-DD
+        }
+        if (entity.getMoSoTietKiem() != null) {
+            dto.setMaSoMoTietKiem(entity.getMoSoTietKiem().getMaMoSo());
+            dto.setTenSoMoTietKiem(entity.getMoSoTietKiem().getTenSoMo());
+            if (entity.getMoSoTietKiem().getNguoiDung() != null) {
+                dto.setMaKhachHang(entity.getMoSoTietKiem().getNguoiDung().getMaND());
+                dto.setTenKhachHang(entity.getMoSoTietKiem().getNguoiDung().getTenND());
             }
         }
+        if (entity.getSanPhamSoTietKiem() != null) {
+            dto.setTenSanPhamSoTietKiem(entity.getSanPhamSoTietKiem().getTenSo());
+        }
+        // dto.setMaGiaoDichString(String.format("GD%06d", entity.getId())); // Nếu bạn muốn có string ID
         return dto;
     }
 }

@@ -203,7 +203,7 @@ public class AdminService {
         dto.setTongSoDuToanHeThong(tongSoDuToanHeThong != null ? tongSoDuToanHeThong : BigDecimal.ZERO);
 
         Pageable limitRecent = PageRequest.of(0, 10, Sort.by("ngayThucHien").descending().and(Sort.by("id").descending()));
-        Page<GiaoDichDTO> recentTransactionsPage = giaoDichService.getAllSystemTransactions(limitRecent);
+        Page<GiaoDichDTO> recentTransactionsPage = giaoDichService.getAllSystemTransactions(limitRecent, null, null, null, null);
         dto.setGiaoDichGanDayNhat(recentTransactionsPage.getContent());
 
         return dto;
@@ -211,7 +211,7 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public Page<GiaoDichDTO> getAllSystemTransactionsPaginated(Pageable pageable) {
-        return giaoDichService.getAllSystemTransactions(pageable);
+        return giaoDichService.getAllSystemTransactions(pageable, null, null, null, null);
     }
     
     @Transactional
