@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -21,17 +22,36 @@ import java.util.Date;
 @Service
 public class PhieuRutTienService {
 
-    @Autowired
-    private PhieuRutTienRepository phieuRutTienRepository;
-    @Autowired
-    private MoSoTietKiemRepository moSoTietKiemRepository;
-    @Autowired
-    private GiaoDichService giaoDichService;
-    @Autowired
-    private MoSoTietKiemService moSoTietKiemService;
+    // @Autowired
+    // private PhieuRutTienRepository phieuRutTienRepository;
+    // @Autowired
+    // private MoSoTietKiemRepository moSoTietKiemRepository;
+    // @Autowired
+    // private GiaoDichService giaoDichService;
+    // @Autowired
+    // private MoSoTietKiemService moSoTietKiemService;
+    private final PhieuRutTienRepository phieuRutTienRepository;
+    private final MoSoTietKiemRepository moSoTietKiemRepository;
+    private final GiaoDichService giaoDichService;
+    private final MoSoTietKiemService moSoTietKiemService;
 
 
     private static final BigDecimal LAI_SUAT_KHONG_KY_HAN_QD3_PERCENT = new BigDecimal("0.5"); 
+
+    private final Clock clock;
+
+    @Autowired
+    public PhieuRutTienService(Clock clock, 
+                               PhieuRutTienRepository phieuRutTienRepository,
+                               MoSoTietKiemRepository moSoTietKiemRepository,
+                               GiaoDichService giaoDichService,
+                               MoSoTietKiemService moSoTietKiemService) {
+        this.phieuRutTienRepository = phieuRutTienRepository;
+        this.moSoTietKiemRepository = moSoTietKiemRepository;
+        this.giaoDichService = giaoDichService;
+        this.moSoTietKiemService = moSoTietKiemService;
+        this.clock = clock;
+    }
 
     @Transactional 
     public PhieuRutTien withdraw(Integer moSoTietKiemId, BigDecimal amountFromRequest, Integer userId) {
@@ -46,7 +66,7 @@ public class PhieuRutTienService {
             throw new IllegalStateException("Thông tin sản phẩm của sổ tiết kiệm không hợp lệ.");
         }
         LocalDate ngayMo = moSoTietKiem.getNgayMo();
-        LocalDate homNay = LocalDate.now();
+        LocalDate homNay = LocalDate.now(this.clock);
         long soNgayDaGui = ChronoUnit.DAYS.between(ngayMo, homNay);
         BigDecimal soTienRutThucTe;
         BigDecimal tienLaiThucNhan = BigDecimal.ZERO;

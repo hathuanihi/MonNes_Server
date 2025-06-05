@@ -16,20 +16,39 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Clock;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class MoSoTietKiemService {
 
+    // @Autowired
+    // private MoSoTietKiemRepository moSoTietKiemRepository;
+    // @Autowired
+    // private SoTietKiemRepository soTietKiemRepository;
+    // @Autowired
+    // private NguoiDungRepository nguoiDungRepository;
+    // @Autowired
+    // private PhieuGuiTienService phieuGuiTienService;
+    private final MoSoTietKiemRepository moSoTietKiemRepository;
+    private final SoTietKiemRepository soTietKiemRepository;
+    private final NguoiDungRepository nguoiDungRepository;
+    private final PhieuGuiTienService phieuGuiTienService;
+    private final Clock clock;
+
     @Autowired
-    private MoSoTietKiemRepository moSoTietKiemRepository;
-    @Autowired
-    private SoTietKiemRepository soTietKiemRepository;
-    @Autowired
-    private NguoiDungRepository nguoiDungRepository;
-    @Autowired
-    private PhieuGuiTienService phieuGuiTienService;
+    public MoSoTietKiemService(Clock clock, 
+                               MoSoTietKiemRepository moSoTietKiemRepository,
+                               SoTietKiemRepository soTietKiemRepository,
+                               NguoiDungRepository nguoiDungRepository,
+                               PhieuGuiTienService phieuGuiTienService) {
+        this.moSoTietKiemRepository = moSoTietKiemRepository;
+        this.soTietKiemRepository = soTietKiemRepository;
+        this.nguoiDungRepository = nguoiDungRepository;
+        this.phieuGuiTienService = phieuGuiTienService;
+        this.clock = clock;
+    }
 
     @Transactional(Transactional.TxType.SUPPORTS) // readOnly = true cho Spring
     public List<MoSoTietKiemResponse> getUserSavingsAccounts(Integer userId) {
@@ -73,7 +92,7 @@ public class MoSoTietKiemService {
         moSo.setTenSoMo(request.getTenSoMo());
         moSo.setSoTietKiemSanPham(sanPhamSoTietKiem);
         moSo.setNguoiDung(nguoiDung);
-        moSo.setNgayMo(LocalDate.now());
+        moSo.setNgayMo(LocalDate.now(this.clock));
         moSo.setSoDu(BigDecimal.ZERO); 
         moSo.setTrangThai(MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG);
         moSo.setLaiSuatApDung(sanPhamSoTietKiem.getLaiSuat());

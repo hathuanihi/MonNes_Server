@@ -9,6 +9,7 @@ import com.SE104.quan_ly_so_tiet_kiem.repository.*;
 
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
+// import org.springframework.boot.autoconfigure.kafka.KafkaProperties.Admin;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Clock;
 import java.time.LocalTime;
 import java.util.Date;
 import java.util.List;
@@ -26,6 +28,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class AdminService {
+
+    private final Clock clock;
 
     @Autowired
     private NguoiDungRepository nguoiDungRepository;
@@ -45,6 +49,28 @@ public class AdminService {
     private GiaoDichRepository giaoDichRepository;
     @Autowired
     private LoaiSoTietKiemDanhMucRepository loaiSoTietKiemDanhMucRepository;
+    @Autowired
+    public AdminService(Clock clock,
+                        NguoiDungRepository nguoiDungRepository,
+                        MoSoTietKiemRepository moSoTietKiemRepository,
+                        MoSoTietKiemService moSoTietKiemService,
+                        UserService userService,
+                        SoTietKiemService soTietKiemService,
+                        GiaoDichService giaoDichService,
+                        DangNhapRepository dangNhapRepository,
+                        GiaoDichRepository giaoDichRepository, 
+                        LoaiSoTietKiemDanhMucRepository loaiSoTietKiemDanhMucRepository) {
+        this.clock = clock;
+        this.nguoiDungRepository = nguoiDungRepository;
+        this.moSoTietKiemRepository = moSoTietKiemRepository;
+        this.moSoTietKiemService = moSoTietKiemService;
+        this.userService = userService;
+        this.soTietKiemService = soTietKiemService;
+        this.giaoDichService = giaoDichService;
+        this.dangNhapRepository = dangNhapRepository;
+        this.giaoDichRepository = giaoDichRepository; // Gán GiaoDichRepository
+        this.loaiSoTietKiemDanhMucRepository = loaiSoTietKiemDanhMucRepository;
+    }
 
 
     @Transactional(readOnly = true)
@@ -122,7 +148,17 @@ public class AdminService {
         if (admin.getVaiTro() != 0) {
             throw new SecurityException("Chỉ có Admin mới có quyền cập nhật thông tin người dùng.");
         }
-        return userService.updateUserProfile(userIdToUpdate, profileDTO);
+        try {
+            return userService.updateUserProfile(userIdToUpdate, profileDTO);
+        } catch (EntityNotFoundException ex) {
+            throw new EntityNotFoundException("Không tìm thấy người dùng với ID: " + userIdToUpdate);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            throw new IllegalArgumentException("Email hoặc số điện thoại đã tồn tại trong hệ thống.");
+        } catch (jakarta.validation.ConstraintViolationException ex) {
+            throw new IllegalArgumentException("Dữ liệu không hợp lệ: " + ex.getMessage());
+        } catch (Exception ex) {
+            throw new RuntimeException("Lỗi khi cập nhật thông tin người dùng: " + ex.getMessage());
+        }
     }
     
     @Transactional
@@ -143,12 +179,12 @@ public class AdminService {
     @Transactional(readOnly = true)
     public ThongKeDTO getSystemStatistics() {
         ThongKeDTO dto = new ThongKeDTO();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(this.clock);
         LocalDate startOfMonth = today.withDayOfMonth(1);
         
-        Date todayUtilDateStart = java.sql.Timestamp.valueOf(today.atStartOfDay());
-        Date todayUtilDateEnd = java.sql.Timestamp.valueOf(today.atTime(LocalTime.MAX));
-        Date startOfMonthUtilDate = java.sql.Timestamp.valueOf(startOfMonth.atStartOfDay());
+        Date todayUtilDateStart = Date.from(today.atStartOfDay(this.clock.getZone()).toInstant());
+        Date todayUtilDateEnd = Date.from(today.atTime(LocalTime.MAX).atZone(this.clock.getZone()).toInstant());
+        Date startOfMonthUtilDate = Date.from(startOfMonth.atStartOfDay(this.clock.getZone()).toInstant());
 
         dto.setLuotTruyCapHomNay(dangNhapRepository.countByLoginTimeBetween(todayUtilDateStart, todayUtilDateEnd));
         dto.setLuotTruyCapThangNay(dangNhapRepository.countByLoginTimeBetween(startOfMonthUtilDate, todayUtilDateEnd));
@@ -185,26 +221,25 @@ public class AdminService {
         if (admin.getVaiTro() != 0) {
             throw new SecurityException("Chỉ có Admin mới có quyền xóa người dùng.");
         }
-
         NguoiDung userToDelete = nguoiDungRepository.findById(userIdToDelete)
             .orElseThrow(() -> new EntityNotFoundException("Người dùng cần xóa không tồn tại ID: " + userIdToDelete));
-
         if (userToDelete.getMaND().equals(adminPerformingActionId)) {
-             throw new SecurityException("Admin không thể tự xóa chính mình.");
+            throw new SecurityException("Admin không thể tự xóa chính mình.");
         }
         if (userToDelete.getVaiTro() == 0) {
             throw new SecurityException("Không thể xóa tài khoản Admin khác qua chức năng này.");
         }
-
-        dangNhapRepository.deleteByNguoiDung(userToDelete);
-
-        List<MoSoTietKiem> userAccounts = moSoTietKiemRepository.findByNguoiDung(userToDelete);
-        for (MoSoTietKiem account : userAccounts) {
-            // @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true) 
-            // giaoDichRepository.deleteByMoSoTietKiem(account);
-            // phieuGuiTienRepository.deleteByMoSoTietKiem(account);
-            // phieuRutTienRepository.deleteByMoSoTietKiem(account);
-            moSoTietKiemRepository.delete(account); 
+        try {
+            dangNhapRepository.deleteByNguoiDung(userToDelete);
+            List<MoSoTietKiem> userAccounts = moSoTietKiemRepository.findByNguoiDung(userToDelete);
+            for (MoSoTietKiem account : userAccounts) {
+                moSoTietKiemRepository.delete(account);
+            }
+            nguoiDungRepository.delete(userToDelete);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            throw new IllegalStateException("Không thể xóa người dùng do còn dữ liệu liên quan hoặc ràng buộc hệ thống.");
+        } catch (Exception ex) {
+            throw new RuntimeException("Lỗi khi xóa người dùng: " + ex.getMessage());
         }
     }
 

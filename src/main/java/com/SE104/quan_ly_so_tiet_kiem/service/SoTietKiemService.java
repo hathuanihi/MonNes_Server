@@ -27,11 +27,13 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.time.LocalDate;
+import java.time.Clock;
 
 @Service
 public class SoTietKiemService {
 
     private static final Logger logger = LoggerFactory.getLogger(SoTietKiemService.class);
+    private final Clock clock;
 
     @Autowired
     private SoTietKiemRepository soTietKiemRepository;
@@ -45,6 +47,22 @@ public class SoTietKiemService {
     private MoSoTietKiemRepository moSoTietKiemRepository;
     @Autowired
     private GiaoDichRepository giaoDichRepository;
+    @Autowired
+    public SoTietKiemService(Clock clock, 
+                             SoTietKiemRepository soTietKiemRepository,
+                             ThayDoiRepository thayDoiRepository,
+                             NguoiDungRepository nguoiDungRepository,
+                             LoaiSoTietKiemRepository loaiSoTietKiemDanhMucRepository,
+                             MoSoTietKiemRepository moSoTietKiemRepository,
+                             GiaoDichRepository giaoDichRepository) {
+    this.soTietKiemRepository = soTietKiemRepository;
+    this.thayDoiRepository = thayDoiRepository;     
+    this.nguoiDungRepository = nguoiDungRepository;
+    this.loaiSoTietKiemDanhMucRepository = loaiSoTietKiemDanhMucRepository;
+    this.moSoTietKiemRepository = moSoTietKiemRepository;
+    this.giaoDichRepository = giaoDichRepository;
+    this.clock = clock;
+    }
 
 
     @Transactional(readOnly = true)
@@ -207,7 +225,7 @@ public class SoTietKiemService {
     private void logThayDoi(SoTietKiem oldState, SoTietKiem newState, NguoiDung admin, String ghiChu) {
         ThayDoi thayDoi = new ThayDoi();
         thayDoi.setNguoiDungAdmin(admin);
-        thayDoi.setNgayThayDoi(LocalDate.now());
+        thayDoi.setNgayThayDoi(LocalDate.now(this.clock));
         thayDoi.setGhiChu(ghiChu);
 
         SoTietKiem stateToLogSanPham = (newState != null) ? newState : oldState;

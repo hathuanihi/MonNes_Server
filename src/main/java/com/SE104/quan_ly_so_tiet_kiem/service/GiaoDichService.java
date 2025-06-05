@@ -22,17 +22,27 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Clock;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class GiaoDichService {
     private static final Logger logger = LoggerFactory.getLogger(GiaoDichService.class);
+    private final Clock clock;
 
     @Autowired
     private GiaoDichRepository giaoDichRepository;
     @Autowired
     private MoSoTietKiemRepository moSoTietKiemRepository;
+    @Autowired
+    public GiaoDichService(Clock clock, 
+                           GiaoDichRepository giaoDichRepository,
+                           MoSoTietKiemRepository moSoTietKiemRepository) {
+        this.giaoDichRepository = giaoDichRepository;
+        this.moSoTietKiemRepository = moSoTietKiemRepository;
+        this.clock = clock;
+    }
 
     @Transactional
     public GiaoDich saveTransaction(BigDecimal soTien, TransactionType loaiGiaoDich, MoSoTietKiem moSoTietKiem) {
@@ -48,7 +58,7 @@ public class GiaoDichService {
         GiaoDich giaoDich = new GiaoDich();
         giaoDich.setSoTien(soTien);
         giaoDich.setLoaiGiaoDich(loaiGiaoDich);
-        giaoDich.setNgayThucHien(LocalDate.now());
+        giaoDich.setNgayThucHien(LocalDate.now(this.clock));
         giaoDich.setMoSoTietKiem(moSoTietKiem);
         giaoDich.setSanPhamSoTietKiem(moSoTietKiem.getSoTietKiemSanPham()); 
 

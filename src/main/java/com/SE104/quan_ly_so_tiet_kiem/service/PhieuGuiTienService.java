@@ -15,25 +15,38 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 
 @Service
 public class PhieuGuiTienService {
+    
+    // @Autowired
+    // private PhieuGuiTienRepository phieuGuiTienRepository;
+    // @Autowired
+    // private MoSoTietKiemRepository moSoTietKiemRepository;
+    // @Autowired
+    // private GiaoDichService giaoDichService;
+    private final PhieuGuiTienRepository phieuGuiTienRepository;
+    private final MoSoTietKiemRepository moSoTietKiemRepository;
+    private final GiaoDichService giaoDichService;
 
-    @Autowired
-    private PhieuGuiTienRepository phieuGuiTienRepository;
-    @Autowired
-    private MoSoTietKiemRepository moSoTietKiemRepository;
-    @Autowired
-    private GiaoDichService giaoDichService;
 
     private final MoSoTietKiemService moSoTietKiemService;
+    private final Clock clock;
 
     @Autowired
-    public PhieuGuiTienService(@Lazy MoSoTietKiemService moSoTietKiemService) {
+    public PhieuGuiTienService(Clock clock,  
+                               PhieuGuiTienRepository phieuGuiTienRepository,
+                               MoSoTietKiemRepository moSoTietKiemRepository,
+                               GiaoDichService giaoDichService,
+                               @Lazy MoSoTietKiemService moSoTietKiemService) {
+        this.phieuGuiTienRepository = phieuGuiTienRepository;
+        this.moSoTietKiemRepository = moSoTietKiemRepository;
+        this.giaoDichService = giaoDichService;
         this.moSoTietKiemService = moSoTietKiemService;
+        this.clock = clock;
     }
-
 
     @Transactional
     public PhieuGuiTien deposit(Integer moSoTietKiemId, BigDecimal amount, Integer userId, boolean isInitialDeposit) {
@@ -52,13 +65,13 @@ public class PhieuGuiTienService {
                 throw new IllegalArgumentException("Số tiền gửi thêm tối thiểu là 100.000 VND.");
             }
             if (sanPham.getKyHan() != null && sanPham.getKyHan() > 0) {
-                LocalDate today = LocalDate.now();
+                LocalDate today = LocalDate.now(this.clock);
                 if (moSoTietKiem.getNgayDaoHan() == null || today.isBefore(moSoTietKiem.getNgayDaoHan())) {
                     throw new IllegalStateException("Chỉ được gửi thêm tiền vào sổ có kỳ hạn khi đến ngày đáo hạn (tái tục).");
                 }
             } else {
                 LocalDate ngayMoSo = moSoTietKiem.getNgayMo();
-                LocalDate today = LocalDate.now();
+                LocalDate today = LocalDate.now(this.clock);
                 long daysSinceOpened = ChronoUnit.DAYS.between(ngayMoSo, today);
                 if (sanPham.getSoNgayGuiToiThieuDeRut() != null && daysSinceOpened < sanPham.getSoNgayGuiToiThieuDeRut()) {
                     throw new IllegalStateException("Sổ không kỳ hạn chưa đủ điều kiện gửi thêm tiền. Cần gửi ít nhất " +
@@ -69,7 +82,7 @@ public class PhieuGuiTienService {
         PhieuGuiTien phieuGuiTien = new PhieuGuiTien();
         phieuGuiTien.setMoSoTietKiem(moSoTietKiem);
         phieuGuiTien.setSoTienGui(amount);
-        phieuGuiTien.setNgayGui(LocalDate.now());
+        phieuGuiTien.setNgayGui(LocalDate.now(this.clock));
         PhieuGuiTien savedPhieu = phieuGuiTienRepository.save(phieuGuiTien);
         moSoTietKiem.setSoDu(moSoTietKiem.getSoDu().add(amount));
         moSoTietKiemRepository.save(moSoTietKiem);
