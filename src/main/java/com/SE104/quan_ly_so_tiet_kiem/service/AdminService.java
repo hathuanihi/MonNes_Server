@@ -86,7 +86,7 @@ public class AdminService {
             if (user.getNgaySinh() != null) {
                  dto.setNgaySinh(new java.sql.Date(user.getNgaySinh().getTime()));
             } else {
-                dto.setNgaySinh(null);
+                 dto.setNgaySinh(null);
             }
             dto.setEmail(user.getEmail());
             dto.setVaiTro(user.getVaiTro() == 0 ? "ADMIN" : "USER");
@@ -94,8 +94,8 @@ public class AdminService {
             List<MoSoTietKiem> userAccounts = moSoTietKiemRepository.findByNguoiDung(user); 
             dto.setDanhSachSoTietKiemDaMo(
                 userAccounts.stream()
-                    .map(moSoTietKiemService::mapEntityToResponse)
-                    .collect(Collectors.toList())
+                        .map(moSoTietKiemService::mapEntityToResponse)
+                        .collect(Collectors.toList())
             );
             BigDecimal totalBalance = userAccounts.stream()
                 .filter(acc -> acc.getTrangThai() == MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG)
@@ -199,8 +199,15 @@ public class AdminService {
         Long activeAccounts = moSoTietKiemRepository.countByTrangThai(MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG);
         dto.setTongSoTaiKhoanTietKiemDangHoatDong(activeAccounts != null ? activeAccounts : 0L);
         
-        BigDecimal tongSoDuToanHeThong = moSoTietKiemRepository.sumSoDuByTrangThai(MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG);
-        dto.setTongSoDuToanHeThong(tongSoDuToanHeThong != null ? tongSoDuToanHeThong : BigDecimal.ZERO);
+        // >> LOGIC ĐÃ SỬA <<
+        // Tính tổng số dư của các sổ đang hoạt động
+        BigDecimal activeBalance = moSoTietKiemRepository.sumSoDuByTrangThai(MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG);
+        // Tính tổng số dư của các sổ đã đáo hạn
+        BigDecimal maturedBalance = moSoTietKiemRepository.sumSoDuByTrangThai(MoSoTietKiem.TrangThaiMoSo.DA_DAO_HAN);
+        // Cộng hai giá trị lại để ra tổng số dư toàn hệ thống
+        BigDecimal tongSoDuToanHeThong = (activeBalance != null ? activeBalance : BigDecimal.ZERO)
+                                        .add(maturedBalance != null ? maturedBalance : BigDecimal.ZERO);
+        dto.setTongSoDuToanHeThong(tongSoDuToanHeThong);
 
         Pageable limitRecent = PageRequest.of(0, 10, Sort.by("ngayThucHien").descending().and(Sort.by("id").descending()));
         Page<GiaoDichDTO> recentTransactionsPage = giaoDichService.getAllSystemTransactions(limitRecent, null, null, null, null);

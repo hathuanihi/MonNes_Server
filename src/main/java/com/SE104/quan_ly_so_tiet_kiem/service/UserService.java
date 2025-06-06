@@ -114,22 +114,27 @@ public class UserService {
         return response;
     }
 
-    @Transactional(readOnly = true)
+   @Transactional(readOnly = true)
     public UserAccountSummaryDTO getUserAccountSummary(Integer userId) {
-        if (!nguoiDungRepository.existsById(userId)) { 
+        if (!nguoiDungRepository.existsById(userId)) {
             throw new EntityNotFoundException("Người dùng không tồn tại với ID: " + userId);
         }
 
         UserAccountSummaryDTO summary = new UserAccountSummaryDTO();
+        // Lấy tất cả các sổ của người dùng một lần để tối ưu
         List<MoSoTietKiem> accounts = moSoTietKiemRepository.findByNguoiDung_MaND(userId);
 
+        // >> LOGIC ĐÃ SỬA <<
+        // Tính tổng số dư từ các sổ "Đang hoạt động" VÀ "Đã đáo hạn"
         BigDecimal tongSoDu = accounts.stream()
-                .filter(acc -> acc.getTrangThai() == MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG)
+                .filter(acc -> acc.getTrangThai() == MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG ||
+                            acc.getTrangThai() == MoSoTietKiem.TrangThaiMoSo.DA_DAO_HAN)
                 .map(MoSoTietKiem::getSoDu)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         summary.setTongSoDuTrongTatCaSo(tongSoDu);
 
+        // Các phần còn lại giữ nguyên vì đã đúng
         List<GiaoDich> allUserTransactions = giaoDichRepository.findByMoSoTietKiem_NguoiDung_MaND(userId);
 
         BigDecimal tongTienNap = allUserTransactions.stream()

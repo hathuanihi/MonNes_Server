@@ -79,4 +79,15 @@ public interface GiaoDichRepository extends JpaRepository<GiaoDich, Long>, JpaSp
                 @Param("giaoDichId") Long giaoDichId,
                 @Param("maND") Integer maND
         );
+
+        // Lấy tổng tiền giao dịch toàn hệ thống trong khoảng thời gian (dùng cho thống kê hệ thống)
+        @Query("SELECT SUM(g.soTien) FROM GiaoDich g " +
+                "WHERE g.loaiGiaoDich = :loaiGD " +
+                "AND g.ngayThucHien BETWEEN :startDate AND :endDate")
+        BigDecimal sumSoTienByLoaiGiaoDichAndDateRange(
+                @Param("loaiGD") TransactionType loaiGD,
+                @Param("startDate") LocalDate startDate,
+                @Param("endDate") LocalDate endDate
+        );
+
 }
