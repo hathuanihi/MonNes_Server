@@ -63,6 +63,7 @@ public class AuthService {
             return System.currentTimeMillis() - createdAt > PASSCODE_EXPIRY_MS;
         }
     }
+    
 
     @Transactional
     public LoginResponse signIn(LoginRequest request) {
@@ -111,7 +112,9 @@ public class AuthService {
         nguoiDung.setEmail(request.getEmail());
         nguoiDung.setSdt(request.getPhoneNumber());
         nguoiDung.setMatKhau(passwordEncoder.encode(request.getPassword()));
-        nguoiDung.setVaiTro(1); 
+        // Giả sử vai trò là ENUM hoặc Integer. Cần kiểm tra lại entity NguoiDung
+        // nguoiDung.setVaiTro(VaiTro.USER); // Nếu là enum
+        nguoiDung.setVaiTro(1); // Nếu là Integer (1 = USER)
         NguoiDung savedNguoiDung = nguoiDungRepository.save(nguoiDung);
         return userService.mapToUserResponse(savedNguoiDung);
     }
@@ -228,5 +231,17 @@ public class AuthService {
         NguoiDung savedNguoiDung = nguoiDungRepository.save(nguoiDung);
         signupPasscodeStore.remove(request.getEmail());
         return userService.mapToUserResponse(savedNguoiDung);
+    }
+    
+    // =========================================================================
+    // ✅ MỚI: Thêm phương thức này để lấy thông tin người dùng từ token
+    // =========================================================================
+    public UserResponse getUserProfile(String username) {
+        // Username ở đây chính là email được lấy từ JWT token
+        NguoiDung user = nguoiDungRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Người dùng không tồn tại với email: " + username));
+
+        // Tái sử dụng phương thức mapping đã có trong UserService để đảm bảo tính nhất quán
+        return userService.mapToUserResponse(user);
     }
 }
