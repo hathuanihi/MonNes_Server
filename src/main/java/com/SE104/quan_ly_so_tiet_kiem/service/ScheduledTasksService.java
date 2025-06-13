@@ -46,9 +46,7 @@ public class ScheduledTasksService {
         this.interestService = interestService;
         this.dashboardService = dashboardService;
         this.nguoiDungRepository = nguoiDungRepository;
-    }
-
-    @Scheduled(cron = "0 5 0 * * ?")
+    }    @Scheduled(cron = "0 5 0 * * ?")
     @Transactional
     public void dailyAccountProcessing() {
         try {
@@ -56,7 +54,72 @@ public class ScheduledTasksService {
             logger.info("Cron job triggered at system time: {}", LocalDate.now(this.clock));
             logger.info("Running daily account processing for date: {}", today);
 
-            // ... (Các phần 1, 2, 3, 4 xử lý lãi và đáo hạn giữ nguyên như file gốc) ...
+            // ====================================================================
+            // PHẦN 1: XỬ LÝ ĐÁO HẠN CHO SỔ CÓ KỲ HẠN
+            // ====================================================================
+            logger.info("Starting term deposit maturity processing for {}", today);
+            List<MoSoTietKiem> termAccountsMaturing = moSoTietKiemRepository.findByNgayDaoHanAndTrangThai(
+                today, MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG);
+            logger.info("Found {} term accounts maturing on {}", termAccountsMaturing.size(), today);
+            
+            for (MoSoTietKiem account : termAccountsMaturing) {
+                try {
+                    processTermDepositMaturity(account, today);
+                } catch (Exception e) {
+                    logger.error("Error processing maturity for account ID {}: {}", account.getMaMoSo(), e.getMessage(), e);
+                }
+            }
+
+            // ====================================================================
+            // PHẦN 2: XỬ LÝ LÃI CHO SỔ ĐÃ ĐÁO HẠN (LÃI SUẤT 0.5%)
+            // ====================================================================
+            logger.info("Starting overdue interest processing for {}", today);
+            List<MoSoTietKiem> overdueAccounts = moSoTietKiemRepository.findByTrangThaiAndNgayTraLaiKeTiepLessThanEqual(
+                MoSoTietKiem.TrangThaiMoSo.DA_DAO_HAN, today);
+            logger.info("Found {} overdue accounts for interest calculation on {}", overdueAccounts.size(), today);
+            
+            for (MoSoTietKiem account : overdueAccounts) {
+                try {
+                    accrueOverdueInterest(account, today);
+                } catch (Exception e) {
+                    logger.error("Error processing overdue interest for account ID {}: {}", account.getMaMoSo(), e.getMessage(), e);
+                }
+            }
+
+            // ====================================================================
+            // PHẦN 3: XỬ LÝ LÃI CHO SỔ KHÔNG KỲ HẠN
+            // ====================================================================
+            logger.info("Starting non-term account interest processing for {}", today);
+            List<MoSoTietKiem> nonTermAccounts = moSoTietKiemRepository.findByTrangThaiAndNgayTraLaiKeTiepLessThanEqualAndSoTietKiemSanPham_KyHanIsNull(
+                MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG, today);
+            logger.info("Found {} non-term accounts for interest calculation on {}", nonTermAccounts.size(), today);
+            
+            for (MoSoTietKiem account : nonTermAccounts) {
+                try {
+                    accrueInterestForNonTermAccount(account, today);
+                } catch (Exception e) {
+                    logger.error("Error processing interest for non-term account ID {}: {}", account.getMaMoSo(), e.getMessage(), e);
+                }
+            }
+
+            // ====================================================================
+            // PHẦN 4: XỬ LÝ LÃI CHO SỔ CÓ KỲ HẠN CHƯA ĐÁO HẠN
+            // ====================================================================
+            logger.info("Starting term account interest processing for {}", today);
+            List<MoSoTietKiem> activeTermAccounts = moSoTietKiemRepository.findByTrangThaiAndNgayTraLaiKeTiepLessThanEqualAndSoTietKiemSanPham_KyHanIsNotNull(
+                MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG, today);
+            logger.info("Found {} active term accounts for interest calculation on {}", activeTermAccounts.size(), today);
+            
+            for (MoSoTietKiem account : activeTermAccounts) {
+                try {
+                    // Chỉ tính lãi nếu chưa đến ngày đáo hạn
+                    if (account.getNgayDaoHan() != null && today.isBefore(account.getNgayDaoHan())) {
+                        accrueInterestForTermAccount(account, today);
+                    }
+                } catch (Exception e) {
+                    logger.error("Error processing interest for term account ID {}: {}", account.getMaMoSo(), e.getMessage(), e);
+                }
+            }
             
             // ====================================================================
             // PHẦN THỐNG KÊ MỚI

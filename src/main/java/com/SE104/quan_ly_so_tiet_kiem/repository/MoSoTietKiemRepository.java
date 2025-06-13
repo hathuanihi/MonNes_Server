@@ -38,9 +38,15 @@ public interface MoSoTietKiemRepository extends JpaRepository<MoSoTietKiem, Inte
 
     boolean existsBySoTietKiemSanPham_MaSo(Integer maSoSanPham);
 
+    List<MoSoTietKiem> findByNgayDaoHanAndTrangThai(LocalDate ngayDaoHan, MoSoTietKiem.TrangThaiMoSo trangThai);
+
+    List<MoSoTietKiem> findByTrangThaiAndNgayTraLaiKeTiepLessThanEqualAndSoTietKiemSanPham_KyHanIsNull(
+        MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayTraLaiKeTiep);
     List<MoSoTietKiem> findByTrangThaiAndNgayDaoHanLessThanEqual(MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate date);
     
     List<MoSoTietKiem> findBySoTietKiemSanPham_KyHanAndTrangThai(Integer kyHan, MoSoTietKiem.TrangThaiMoSo trangThai);
+    List<MoSoTietKiem> findByTrangThaiAndNgayTraLaiKeTiepLessThanEqualAndSoTietKiemSanPham_KyHanIsNotNull(
+        MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayTraLaiKeTiep);
 
     Optional<MoSoTietKiem> findByMaMoSoAndNguoiDung(Integer maMoSo, NguoiDung nguoiDung);
 

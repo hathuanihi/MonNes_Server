@@ -22,9 +22,7 @@ public class ClockConfig {
     private static String currentClockDescription = "System Clock (Default)";
 
     @Value("${app.fixed.clock.instant:}") 
-    private String fixedInstantStringFromProperties;
-
-    @Value("${app.fixed.clock.zone:Asia/Ho_Chi_Minh}")
+    private String fixedInstantStringFromProperties;    @Value("${app.fixed.clock.zone:Asia/Ho_Chi_Minh}")
     private String fixedZoneStringFromProperties;
 
     @Bean
@@ -45,7 +43,26 @@ public class ClockConfig {
         } else {
             logger.info("Clock initialized to: {}", currentClockDescription);
         }
-        return mutableClock;
+        
+        // Return a wrapper Clock that always delegates to the current mutableClock
+        // This ensures that when mutableClock is changed via debug endpoints,
+        // all injected Clock instances will use the new clock
+        return new Clock() {
+            @Override
+            public ZoneId getZone() {
+                return mutableClock.getZone();
+            }
+
+            @Override
+            public Clock withZone(ZoneId zone) {
+                return mutableClock.withZone(zone);
+            }
+
+            @Override
+            public Instant instant() {
+                return mutableClock.instant();
+            }
+        };
     }
 
     private static void setClockInternal(Clock newClock, String description) {

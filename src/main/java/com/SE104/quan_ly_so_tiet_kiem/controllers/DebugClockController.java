@@ -1,8 +1,10 @@
 package com.SE104.quan_ly_so_tiet_kiem.controllers;
 
 import com.SE104.quan_ly_so_tiet_kiem.config.ClockConfig;
+import com.SE104.quan_ly_so_tiet_kiem.service.ScheduledTasksService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +22,9 @@ import java.time.format.DateTimeParseException;
 public class DebugClockController {
 
     private static final Logger logger = LoggerFactory.getLogger(DebugClockController.class);
+
+    @Autowired
+    private ScheduledTasksService scheduledTasksService;
 
     @PostMapping("/set-fixed")
     public ResponseEntity<String> setFixedClock(
@@ -54,5 +59,17 @@ public class DebugClockController {
         String clockInfo = ClockConfig.getCurrentClockDescription();
         logger.info("Debug endpoint called: Retrieving current clock info: {}", clockInfo);
         return ResponseEntity.ok(clockInfo);
+    }
+
+    @PostMapping("/trigger-daily-processing")
+    public ResponseEntity<String> triggerDailyProcessing() {
+        try {
+            logger.info("Debug endpoint called: Manually triggering dailyAccountProcessing");
+            scheduledTasksService.dailyAccountProcessing();
+            return ResponseEntity.ok("Daily account processing completed successfully. Check logs for details.");
+        } catch (Exception e) {
+            logger.error("Error during manual daily processing trigger", e);
+            return ResponseEntity.internalServerError().body("Error during daily processing: " + e.getMessage());
+        }
     }
 }

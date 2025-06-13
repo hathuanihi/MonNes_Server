@@ -88,6 +88,7 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/api/auth/**", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**", "/swagger-ui.html", "/favicon.ico").permitAll(); 
+                auth.requestMatchers("/api/debug/**", "/api/test/**").permitAll(); // Allow debug and test endpoints in dev
                 auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/admin/savings-products-management").hasAnyRole("USER", "ADMIN");
                 auth.requestMatchers("/api/admin/**").hasRole("ADMIN");
                 auth.requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN");
