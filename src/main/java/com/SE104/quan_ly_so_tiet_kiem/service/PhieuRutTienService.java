@@ -49,8 +49,8 @@ public class PhieuRutTienService {
     }
 
     @Transactional 
-    public PhieuRutTien withdraw(Integer moSoTietKiemId, BigDecimal amountFromRequestIgnored, Integer userId) { // amountFromRequest không còn dùng vì rút toàn bộ
-        logger.info("User ID {} attempting to withdraw from account ID: {}", userId, moSoTietKiemId);
+    public PhieuRutTien withdraw(Integer moSoTietKiemId, BigDecimal soTienRut, Integer userId) {
+        logger.info("User ID {} attempting to withdraw {} VND from account ID: {}", userId, soTienRut, moSoTietKiemId);
         MoSoTietKiem moSoTietKiem = moSoTietKiemService.validateUserAccessAndGetAccount(moSoTietKiemId, userId);
         
         SoTietKiem sanPham = moSoTietKiem.getSoTietKiemSanPham();
@@ -58,11 +58,15 @@ public class PhieuRutTienService {
             throw new IllegalStateException("Thông tin sản phẩm của sổ tiết kiệm không hợp lệ (ID Sổ: " + moSoTietKiemId + ").");
         }
 
+        // Validate withdrawal amount
+        if (soTienRut == null || soTienRut.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Số tiền rút phải lớn hơn 0.");
+        }
+
         LocalDate ngayRutTien = LocalDate.now(this.clock);
         BigDecimal soDuHienTai = moSoTietKiem.getSoDu();
         BigDecimal tienLaiThucNhan = BigDecimal.ZERO;
         BigDecimal laiSuatTinhKhiRut = moSoTietKiem.getLaiSuatApDung(); // Mặc định
-        boolean daTinhLaiKyHan = false; // Cờ để biết lãi kỳ hạn đã được ScheduledTask xử lý chưa
 
         if (sanPham.getKyHan() != null && sanPham.getKyHan() > 0) { // Sổ có kỳ hạn
             LocalDate ngayDaoHan = moSoTietKiem.getNgayDaoHan();
@@ -70,23 +74,28 @@ public class PhieuRutTienService {
                 throw new IllegalStateException("Sổ có kỳ hạn (ID: " + moSoTietKiemId + ") nhưng không có ngày đáo hạn hợp lệ.");
             }
 
+            // Chỉ được rút từ ngày đáo hạn trở đi
             if (ngayRutTien.isBefore(ngayDaoHan)) {
-                throw new IllegalStateException("Sổ tiết kiệm (ID: " + moSoTietKiemId + ") chưa đến ngày đáo hạn (" + ngayDaoHan.format(java.time.format.DateTimeFormatter.ISO_DATE) + "). Không thể rút tiền.");
+                throw new IllegalStateException("Sổ tiết kiệm có kỳ hạn (ID: " + moSoTietKiemId + ") chỉ được rút từ ngày đáo hạn (" + ngayDaoHan.format(java.time.format.DateTimeFormatter.ISO_DATE) + ") trở đi. Không thể rút tiền.");
             }
             
-            if (ngayRutTien.isEqual(ngayDaoHan) && moSoTietKiem.getTrangThai() == MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG) {
-                 // Tính lãi cho kỳ hạn vừa kết thúc (giống logic trong ScheduledTask)
-                tienLaiThucNhan = interestService.tinhLaiDonTheoThoiGian(soDuHienTai, moSoTietKiem.getLaiSuatApDung(), moSoTietKiem.getNgayMo(), ngayDaoHan);
-                laiSuatTinhKhiRut = moSoTietKiem.getLaiSuatApDung();
-                daTinhLaiKyHan = true; // Đã tính lãi của kỳ hạn này
-                logger.info("Account ID {}: Calculating maturity interest on withdrawal. Interest: {}", moSoTietKiemId, tienLaiThucNhan);
+            // Phải rút hết toàn bộ số dư
+            if (soTienRut.compareTo(soDuHienTai) != 0) {
+                throw new IllegalStateException("Sổ tiết kiệm có kỳ hạn phải rút hết toàn bộ số dư (" + soDuHienTai + " VND). Không thể rút một phần.");
             }
-            // Nếu rút SAU ngày đáo hạn (sổ đang ở trạng thái DA_DAO_HAN_CHO_XU_LY và hưởng lãi 0.5%)
-            else if (ngayRutTien.isAfter(ngayDaoHan) && moSoTietKiem.getTrangThai() == MoSoTietKiem.TrangThaiMoSo.DA_DAO_HAN) {
-                LocalDate ngayBatDauTinhLaiSauDaoHan = moSoTietKiem.getNgayTraLaiCuoiCung() != null ? moSoTietKiem.getNgayTraLaiCuoiCung() : ngayDaoHan;
-                tienLaiThucNhan = interestService.tinhLaiDonTheoThoiGian(soDuHienTai, LAI_SUAT_SAU_DAO_HAN_DEFAULT, ngayBatDauTinhLaiSauDaoHan, ngayRutTien);
+            
+            if (ngayRutTien.isEqual(ngayDaoHan)) {
+                // Rút trong ngày đáo hạn - tính lãi với lãi suất tương ứng (lãi suất kỳ hạn)
+                LocalDate ngayBatDauTinhLai = moSoTietKiem.getNgayTraLaiCuoiCung() != null ? moSoTietKiem.getNgayTraLaiCuoiCung() : moSoTietKiem.getNgayMo();
+                tienLaiThucNhan = interestService.tinhLaiDonTheoThoiGian(soDuHienTai, moSoTietKiem.getLaiSuatApDung(), ngayBatDauTinhLai, ngayRutTien);
+                laiSuatTinhKhiRut = moSoTietKiem.getLaiSuatApDung();
+                logger.info("Term Account ID {}: Withdrawing on maturity date with term interest rate ({}%). Interest: {}", moSoTietKiemId, moSoTietKiem.getLaiSuatApDung(), tienLaiThucNhan);
+            } else {
+                // Rút sau ngày đáo hạn - tính lãi với lãi suất không kỳ hạn (0.5%)
+                LocalDate ngayBatDauTinhLai = moSoTietKiem.getNgayTraLaiCuoiCung() != null ? moSoTietKiem.getNgayTraLaiCuoiCung() : ngayDaoHan;
+                tienLaiThucNhan = interestService.tinhLaiDonTheoThoiGian(soDuHienTai, LAI_SUAT_SAU_DAO_HAN_DEFAULT, ngayBatDauTinhLai, ngayRutTien);
                 laiSuatTinhKhiRut = LAI_SUAT_SAU_DAO_HAN_DEFAULT;
-                logger.info("Account ID {}: Calculating post-maturity interest (0.5%) on withdrawal. Interest: {}", moSoTietKiemId, tienLaiThucNhan);
+                logger.info("Term Account ID {}: Withdrawing after maturity date with non-term interest rate (0.5%). Interest: {}", moSoTietKiemId, tienLaiThucNhan);
             }
     
 
@@ -98,6 +107,12 @@ public class PhieuRutTienService {
             if (soNgayDaGui < sanPham.getSoNgayGuiToiThieuDeRut()) {
                 throw new IllegalStateException("Sổ không kỳ hạn chưa đủ thời gian gửi tối thiểu (" + sanPham.getSoNgayGuiToiThieuDeRut() + " ngày). Đã gửi: " + soNgayDaGui + " ngày.");
             }
+
+            // Kiểm tra số dư có đủ để rút không
+            if (soTienRut.compareTo(soDuHienTai) > 0) {
+                throw new IllegalStateException("Số tiền rút (" + soTienRut + " VND) vượt quá số dư hiện có (" + soDuHienTai + " VND).");
+            }
+
             // Tính lãi cho sổ KKH từ lần trả lãi cuối cùng (hoặc ngày mở) đến ngày rút
             LocalDate ngayBatDauTinhLaiKKH = moSoTietKiem.getNgayTraLaiCuoiCung() != null ? moSoTietKiem.getNgayTraLaiCuoiCung() : moSoTietKiem.getNgayMo();
             tienLaiThucNhan = interestService.tinhLaiDonTheoThoiGian(soDuHienTai, moSoTietKiem.getLaiSuatApDung(), ngayBatDauTinhLaiKKH, ngayRutTien);
@@ -105,31 +120,31 @@ public class PhieuRutTienService {
             logger.info("Non-term Account ID {}: Calculating interest on withdrawal. Interest: {}", moSoTietKiemId, tienLaiThucNhan);
         }
 
-        BigDecimal soTienRutToanBo = soDuHienTai.add(tienLaiThucNhan);
-
-        if (soTienRutToanBo.compareTo(BigDecimal.ZERO) < 0) { // Không thể rút số tiền âm
-             logger.error("Calculated withdrawal amount is negative for account ID {}. Amount: {}", moSoTietKiemId, soTienRutToanBo);
-            throw new IllegalStateException("Lỗi tính toán: Số tiền rút không thể âm.");
-        }
-        
         // Tạo phiếu rút tiền
         PhieuRutTien phieuRutTien = new PhieuRutTien();
         phieuRutTien.setMoSoTietKiem(moSoTietKiem);
-        phieuRutTien.setSoTienRut(soTienRutToanBo); 
+        phieuRutTien.setSoTienRut(soTienRut); 
         phieuRutTien.setNgayRut(Date.from(ngayRutTien.atStartOfDay(clock.getZone()).toInstant())); 
         phieuRutTien.setLaiSuatKhiRut(laiSuatTinhKhiRut);
         phieuRutTien.setTienLaiThucNhan(tienLaiThucNhan.setScale(2, RoundingMode.HALF_UP));
         PhieuRutTien savedPhieu = phieuRutTienRepository.save(phieuRutTien);
 
-        // Cập nhật sổ tiết kiệm: số dư về 0 và đóng sổ
-        moSoTietKiem.setSoDu(BigDecimal.ZERO);
-        moSoTietKiem.setTrangThai(MoSoTietKiem.TrangThaiMoSo.DA_DONG);
+        // Cập nhật số dư sổ tiết kiệm
+        BigDecimal soDuMoi = soDuHienTai.subtract(soTienRut);
+        moSoTietKiem.setSoDu(soDuMoi);
+        
+        // Nếu rút hết tiền (số dư = 0) thì đóng sổ
+        if (soDuMoi.compareTo(BigDecimal.ZERO) == 0) {
+            moSoTietKiem.setTrangThai(MoSoTietKiem.TrangThaiMoSo.DA_DONG);
+            logger.info("Account ID {} closed due to zero balance after withdrawal", moSoTietKiemId);
+        }
+        
         moSoTietKiemRepository.save(moSoTietKiem);
 
-        giaoDichService.saveTransaction(soTienRutToanBo, TransactionType.WITHDRAW, moSoTietKiem, ngayRutTien);
+        giaoDichService.saveTransaction(soTienRut, TransactionType.WITHDRAW, moSoTietKiem, ngayRutTien);
 
-        logger.info("User ID {} successfully withdrew {} VND (Interest: {}) from account ID {}. Account closed.", 
-                    userId, soTienRutToanBo, tienLaiThucNhan, moSoTietKiemId);
+        logger.info("User ID {} successfully withdrew {} VND (Interest: {}) from account ID {}. New balance: {}", 
+                    userId, soTienRut, tienLaiThucNhan, moSoTietKiemId, soDuMoi);
         return savedPhieu;
     }
 }
