@@ -181,11 +181,9 @@ public class ScheduledTasksService {
         }
 
         BigDecimal soDuTruocLai = account.getSoDu();
-        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, maturityDate, account.getLaiSuatApDung(), soDuTruocLai, account.getNgayMo());
-
-        if (interest.compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, maturityDate, account.getLaiSuatApDung(), soDuTruocLai, account.getNgayMo());        if (interest.compareTo(BigDecimal.ZERO) > 0) {
             account.setSoDu(soDuTruocLai.add(interest));
-            giaoDichService.saveTransaction(interest, TransactionType.INTEREST_ACCRUAL, account, maturityDate);
+            giaoDichService.saveTransaction(interest, TransactionType.INTEREST, account, maturityDate);
             logger.info("Term Account ID: {}. Balance before: {}. Interest: {}. New Balance: {}",
                     account.getMaMoSo(), soDuTruocLai, interest, account.getSoDu());
         } else {
@@ -218,11 +216,9 @@ public class ScheduledTasksService {
         }
 
         BigDecimal currentBalance = account.getSoDu();
-        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, currentDate, INTEREST_RATE_AFTER_MATURITY, currentBalance, lastInterestDate);
-
-        if (interest.compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, currentDate, INTEREST_RATE_AFTER_MATURITY, currentBalance, lastInterestDate);        if (interest.compareTo(BigDecimal.ZERO) > 0) {
             account.setSoDu(currentBalance.add(interest));
-            giaoDichService.saveTransaction(interest, TransactionType.INTEREST_PAYMENT, account, currentDate);
+            giaoDichService.saveTransaction(interest, TransactionType.INTEREST, account, currentDate);
             account.setNgayTraLaiCuoiCung(currentDate);
             logger.info("Overdue Account ID: {}. Balance: {}. Interest (0.5%): {}. New Balance: {}",
                     account.getMaMoSo(), currentBalance, interest, account.getSoDu());
@@ -258,11 +254,9 @@ public class ScheduledTasksService {
 
         BigDecimal currentBalance = account.getSoDu();
         BigDecimal interestRate = account.getLaiSuatApDung();
-        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, currentDate, interestRate, currentBalance, lastInterestDate);
-
-        if (interest.compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, currentDate, interestRate, currentBalance, lastInterestDate);        if (interest.compareTo(BigDecimal.ZERO) > 0) {
             account.setSoDu(currentBalance.add(interest));
-            giaoDichService.saveTransaction(interest, TransactionType.INTEREST_PAYMENT, account, currentDate);
+            giaoDichService.saveTransaction(interest, TransactionType.INTEREST, account, currentDate);
             account.setNgayTraLaiCuoiCung(currentDate);
             logger.info("Non-term Account ID: {}. Balance: {}. Interest: {}. New Balance: {}",
                     account.getMaMoSo(), currentBalance, interest, account.getSoDu());
@@ -279,10 +273,9 @@ public class ScheduledTasksService {
             return;
         }
         BigDecimal currentBalance = account.getSoDu();
-        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, currentDate, account.getLaiSuatApDung(), currentBalance, lastInterestDate);
-        if (interest.compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, currentDate, account.getLaiSuatApDung(), currentBalance, lastInterestDate);        if (interest.compareTo(BigDecimal.ZERO) > 0) {
             account.setSoDu(currentBalance.add(interest));
-            giaoDichService.saveTransaction(interest, TransactionType.INTEREST_PAYMENT, account, currentDate);
+            giaoDichService.saveTransaction(interest, TransactionType.INTEREST, account, currentDate);
             account.setNgayTraLaiCuoiCung(currentDate);
             logger.info("Term Account ID: {}. Balance: {}. Interest: {}. New Balance: {}",
                     account.getMaMoSo(), currentBalance, interest, account.getSoDu());
