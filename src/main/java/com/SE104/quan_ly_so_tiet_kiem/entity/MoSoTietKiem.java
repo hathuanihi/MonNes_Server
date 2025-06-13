@@ -85,10 +85,13 @@ public class MoSoTietKiem {
                              this.maMoSo, this.ngayMo, this.soTietKiemSanPham.getKyHan(), this.ngayDaoHan, this.ngayTraLaiKeTiep);
             } else {
                 this.ngayDaoHan = null;
-                this.ngayTraLaiKeTiep = this.ngayMo.plusMonths(1).withDayOfMonth(
-                    Math.min(this.ngayMo.getDayOfMonth(), this.ngayMo.plusMonths(1).lengthOfMonth()));
-                logger.debug("Setting non-term account for MoSoTietKiem ID {}: ngayMo={}, ngayDaoHan=null, ngayTraLaiKeTiep={}", 
-                             this.maMoSo, this.ngayMo, this.ngayTraLaiKeTiep);
+                // Đối với sổ không kỳ hạn, tính ngayTraLaiKeTiep dựa trên số ngày gửi tối thiểu
+                int soNgayGuiToiThieu = this.soTietKiemSanPham.getSoNgayGuiToiThieuDeRut() != null ? 
+                    this.soTietKiemSanPham.getSoNgayGuiToiThieuDeRut() : 15;
+                // ngayTraLaiKeTiep = ngayMo + soNgayGuiToiThieu + 1 ngày để có thể tính lãi
+                this.ngayTraLaiKeTiep = this.ngayMo.plusDays(soNgayGuiToiThieu + 1);
+                logger.debug("Setting non-term account for MoSoTietKiem ID {}: ngayMo={}, ngayDaoHan=null, soNgayGuiToiThieu={}, ngayTraLaiKeTiep={}", 
+                             this.maMoSo, this.ngayMo, soNgayGuiToiThieu, this.ngayTraLaiKeTiep);
             }
         } else {
             logger.warn("Cannot set ngayDaoHan for MoSoTietKiem ID {}: soTietKiemSanPham={}, ngayMo={}", 

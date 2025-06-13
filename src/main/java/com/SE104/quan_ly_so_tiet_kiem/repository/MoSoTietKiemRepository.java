@@ -40,13 +40,17 @@ public interface MoSoTietKiemRepository extends JpaRepository<MoSoTietKiem, Inte
 
     List<MoSoTietKiem> findByNgayDaoHanAndTrangThai(LocalDate ngayDaoHan, MoSoTietKiem.TrangThaiMoSo trangThai);
 
+    @Query("SELECT m FROM MoSoTietKiem m WHERE m.trangThai = :trangThai AND m.ngayTraLaiKeTiep <= :ngayTraLaiKeTiep AND m.soTietKiemSanPham.kyHan = 0")
     List<MoSoTietKiem> findByTrangThaiAndNgayTraLaiKeTiepLessThanEqualAndSoTietKiemSanPham_KyHanIsNull(
-        MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayTraLaiKeTiep);
+        @Param("trangThai") MoSoTietKiem.TrangThaiMoSo trangThai, @Param("ngayTraLaiKeTiep") LocalDate ngayTraLaiKeTiep);
+    
     List<MoSoTietKiem> findByTrangThaiAndNgayDaoHanLessThanEqual(MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate date);
     
     List<MoSoTietKiem> findBySoTietKiemSanPham_KyHanAndTrangThai(Integer kyHan, MoSoTietKiem.TrangThaiMoSo trangThai);
+    
+    @Query("SELECT m FROM MoSoTietKiem m WHERE m.trangThai = :trangThai AND m.ngayTraLaiKeTiep <= :ngayTraLaiKeTiep AND m.soTietKiemSanPham.kyHan > 0")
     List<MoSoTietKiem> findByTrangThaiAndNgayTraLaiKeTiepLessThanEqualAndSoTietKiemSanPham_KyHanIsNotNull(
-        MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayTraLaiKeTiep);
+        @Param("trangThai") MoSoTietKiem.TrangThaiMoSo trangThai, @Param("ngayTraLaiKeTiep") LocalDate ngayTraLaiKeTiep);
 
     Optional<MoSoTietKiem> findByMaMoSoAndNguoiDung(Integer maMoSo, NguoiDung nguoiDung);
 

@@ -225,10 +225,23 @@ public class ScheduledTasksService {
         }
         account.setNgayTraLaiKeTiep(currentDate.plusMonths(1));
         moSoTietKiemRepository.save(account);
-    }
-
-    @Transactional
+    }    @Transactional
     protected void accrueInterestForNonTermAccount(MoSoTietKiem account, LocalDate currentDate) {
+        // Kiểm tra số ngày gửi tối thiểu (15 ngày) cho sổ không kỳ hạn
+        long daysDeposited = ChronoUnit.DAYS.between(account.getNgayMo(), currentDate);
+        if (account.getSoTietKiemSanPham() != null &&
+                account.getSoTietKiemSanPham().getSoNgayGuiToiThieuDeRut() != null &&
+                daysDeposited < account.getSoTietKiemSanPham().getSoNgayGuiToiThieuDeRut()) {
+            logger.info("Non-term Account ID {}: Minimum {} deposit days not met for interest calculation. Days held: {}",
+                    account.getMaMoSo(), account.getSoTietKiemSanPham().getSoNgayGuiToiThieuDeRut(), daysDeposited);
+            // Cập nhật ngày trả lãi kế tiếp
+            if (account.getNgayTraLaiKeTiep() == null || account.getNgayTraLaiKeTiep().isBefore(currentDate.plusMonths(1))) {
+                account.setNgayTraLaiKeTiep(account.getNgayMo().plusDays(account.getSoTietKiemSanPham().getSoNgayGuiToiThieuDeRut()).plusDays(1));
+                moSoTietKiemRepository.save(account);
+            }
+            return;
+        }
+
         LocalDate lastInterestDate = account.getNgayTraLaiCuoiCung() != null ? account.getNgayTraLaiCuoiCung() : account.getNgayMo();
         if (currentDate.isBefore(lastInterestDate.plusDays(1))) {
             logger.info("Non-term Account ID {}: Not enough days since last interest date.", account.getMaMoSo());
@@ -239,28 +252,27 @@ public class ScheduledTasksService {
             return;
         }
 
-        if (account.getSoTietKiemSanPham() != null &&
-                account.getSoTietKiemSanPham().getSoNgayGuiToiThieuDeRut() != null &&
-                account.getNgayTraLaiCuoiCung() == null &&
-                ChronoUnit.DAYS.between(account.getNgayMo(), currentDate) < account.getSoTietKiemSanPham().getSoNgayGuiToiThieuDeRut()) {
-            logger.info("Non-term Account ID: {}. Minimum {} deposit days not met for first interest payment. Days held: {}",
-                    account.getMaMoSo(), account.getSoTietKiemSanPham().getSoNgayGuiToiThieuDeRut(), ChronoUnit.DAYS.between(account.getNgayMo(), currentDate));
-            if (account.getNgayTraLaiKeTiep() == null || account.getNgayTraLaiKeTiep().isBefore(currentDate.plusMonths(1))) {
-                account.setNgayTraLaiKeTiep(account.getNgayMo().plusMonths(1));
-                moSoTietKiemRepository.save(account);
-            }
+        BigDecimal currentBalance = account.getSoDu();
+        if (currentBalance == null || currentBalance.compareTo(BigDecimal.ZERO) <= 0) {
+            logger.warn("Non-term Account ID {} has invalid balance: {}. Skipping interest calculation.", account.getMaMoSo(), currentBalance);
+            account.setNgayTraLaiKeTiep(currentDate.plusMonths(1));
+            moSoTietKiemRepository.save(account);
             return;
         }
 
-        BigDecimal currentBalance = account.getSoDu();
         BigDecimal interestRate = account.getLaiSuatApDung();
-        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, currentDate, interestRate, currentBalance, lastInterestDate);        if (interest.compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, currentDate, interestRate, currentBalance, lastInterestDate);
+        
+        if (interest.compareTo(BigDecimal.ZERO) > 0) {
             account.setSoDu(currentBalance.add(interest));
             giaoDichService.saveTransaction(interest, TransactionType.INTEREST, account, currentDate);
             account.setNgayTraLaiCuoiCung(currentDate);
-            logger.info("Non-term Account ID: {}. Balance: {}. Interest: {}. New Balance: {}",
-                    account.getMaMoSo(), currentBalance, interest, account.getSoDu());
+            logger.info("Non-term Account ID: {}. Balance: {}. Interest ({}%): {}. New Balance: {}",
+                    account.getMaMoSo(), currentBalance, interestRate, interest, account.getSoDu());
+        } else {
+            logger.info("Non-term Account ID {}: No interest accrued. Interest calculated: {}", account.getMaMoSo(), interest);
         }
+        
         account.setNgayTraLaiKeTiep(currentDate.plusMonths(1));
         moSoTietKiemRepository.save(account);
     }
