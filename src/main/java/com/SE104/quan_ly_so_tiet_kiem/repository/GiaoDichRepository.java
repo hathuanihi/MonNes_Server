@@ -90,4 +90,18 @@ public interface GiaoDichRepository extends JpaRepository<GiaoDich, Long>, JpaSp
                 @Param("endDate") LocalDate endDate
         );
 
+        // Methods for reports
+        @Query("SELECT g FROM GiaoDich g WHERE g.ngayThucHien BETWEEN :fromDate AND :toDate ORDER BY g.ngayThucHien DESC, g.id DESC")
+        List<GiaoDich> findByNgayThucHienBetweenOrderByNgayThucHienDesc(
+                @Param("fromDate") LocalDate fromDate, 
+                @Param("toDate") LocalDate toDate
+        );
+
+        @Query("SELECT g FROM GiaoDich g WHERE g.moSoTietKiem.nguoiDung.maND = :userId AND g.ngayThucHien BETWEEN :fromDate AND :toDate ORDER BY g.ngayThucHien DESC, g.id DESC")
+        List<GiaoDich> findByMoSoTietKiem_NguoiDung_MaNDAndNgayThucHienBetweenOrderByNgayThucHienDesc(
+                @Param("userId") Integer userId,
+                @Param("fromDate") LocalDate fromDate, 
+                @Param("toDate") LocalDate toDate
+        );
+
 }
