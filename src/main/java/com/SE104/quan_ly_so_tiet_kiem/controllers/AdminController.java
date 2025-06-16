@@ -90,14 +90,20 @@ public class AdminController {
     public ResponseEntity<ThongKeDTO> getSystemStatistics() {
         logger.debug("Admin request: Get system statistics");
         return ResponseEntity.ok(adminService.getSystemStatistics());
-    }
-
-    @Operation(summary = "Admin xem tất cả giao dịch trong hệ thống")
+    }    @Operation(summary = "Admin xem tất cả giao dịch trong hệ thống")
     @GetMapping("/transactions")
     public ResponseEntity<Page<GiaoDichDTO>> getAllSystemTransactions(
-            @PageableDefault(size = 10, sort = "ngayGD", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(size = 10, sort = "ngayThucHien", direction = Sort.Direction.DESC) Pageable pageable) {
         logger.debug("Admin request: Get all system transactions with pageable: {}", pageable);
-        return ResponseEntity.ok(adminService.getAllSystemTransactionsPaginated(pageable));
+        
+        try {
+            Page<GiaoDichDTO> result = adminService.getAllSystemTransactionsPaginated(pageable);
+            logger.debug("Successfully retrieved {} transactions", result.getTotalElements());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            logger.error("Error retrieving system transactions", e);
+            throw new RuntimeException("Failed to retrieve system transactions: " + e.getMessage(), e);
+        }
     }
 
     @GetMapping("/savings-categories")

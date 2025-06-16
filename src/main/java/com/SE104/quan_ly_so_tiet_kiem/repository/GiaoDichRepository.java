@@ -104,4 +104,22 @@ public interface GiaoDichRepository extends JpaRepository<GiaoDich, Long>, JpaSp
                 @Param("toDate") LocalDate toDate
         );
 
+
+        // Query with JOIN FETCH to eagerly load related entities
+        @Query("SELECT g FROM GiaoDich g " +
+               "LEFT JOIN FETCH g.moSoTietKiem m " +
+               "LEFT JOIN FETCH m.nguoiDung n " +
+               "LEFT JOIN FETCH g.sanPhamSoTietKiem s " +
+               "WHERE g.ngayThucHien BETWEEN :fromDate AND :toDate " +
+               "ORDER BY g.ngayThucHien DESC")
+        List<GiaoDich> findAllWithDetailsForReport(@Param("fromDate") LocalDate fromDate, 
+                                                   @Param("toDate") LocalDate toDate);
+
+        @Query("SELECT g FROM GiaoDich g " +
+               "LEFT JOIN FETCH g.moSoTietKiem m " +
+               "LEFT JOIN FETCH m.nguoiDung n " +
+               "LEFT JOIN FETCH g.sanPhamSoTietKiem s " +
+               "ORDER BY g.ngayThucHien DESC")
+        org.springframework.data.domain.Page<GiaoDich> findAllWithDetails(Pageable pageable);
+
 }

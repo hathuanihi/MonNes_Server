@@ -110,7 +110,22 @@ public class GiaoDichService {
                                                    String transactionType, 
                                                    LocalDate dateFrom, 
                                                    LocalDate dateTo) {
-        // Sử dụng Specification để tạo query động dựa trên các filter
+        
+        // If no filters are applied, use the simple query with JOIN FETCH
+        if ((searchTerm == null || searchTerm.trim().isEmpty()) && 
+            (transactionType == null || transactionType.trim().isEmpty()) &&
+            dateFrom == null && dateTo == null) {
+            
+            try {
+                // Use the JOIN FETCH query to avoid lazy loading issues
+                Page<GiaoDich> giaoDichPage = giaoDichRepository.findAllWithDetails(pageable);
+                return giaoDichPage.map(this::convertToGiaoDichDTO);
+            } catch (Exception e) {
+                logger.error("Error in findAllWithDetails, falling back to specification query", e);
+            }
+        }
+        
+        // Use Specification để tạo query động dựa trên các filter
         Specification<GiaoDich> spec = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -130,7 +145,6 @@ public class GiaoDichService {
                     predicates.add(criteriaBuilder.equal(root.get("loaiGiaoDich"), type));
                 } catch (IllegalArgumentException e) {
                     logger.warn("Invalid transaction type filter: {}", transactionType);
-
                 }
             }
 
@@ -150,27 +164,48 @@ public class GiaoDichService {
     
     private GiaoDichDTO convertToGiaoDichDTO(GiaoDich entity) {
         if (entity == null) return null;
-        GiaoDichDTO dto = new GiaoDichDTO();
-        dto.setIdGiaoDich(entity.getId());
-        if (entity.getLoaiGiaoDich() != null) {
-            dto.setLoaiGiaoDich(entity.getLoaiGiaoDich().name()); // Hoặc một tên hiển thị tiếng Việt
-        }
-        dto.setSoTien(entity.getSoTien());
-        if (entity.getNgayThucHien() != null) {
-            dto.setNgayGD(entity.getNgayThucHien()); // Format YYYY-MM-DD
-        }
-        if (entity.getMoSoTietKiem() != null) {
-            dto.setMaSoMoTietKiem(entity.getMoSoTietKiem().getMaMoSo());
-            dto.setTenSoMoTietKiem(entity.getMoSoTietKiem().getTenSoMo());
-            if (entity.getMoSoTietKiem().getNguoiDung() != null) {
-                dto.setMaKhachHang(entity.getMoSoTietKiem().getNguoiDung().getMaND());
-                dto.setTenKhachHang(entity.getMoSoTietKiem().getNguoiDung().getTenND());
+        
+        try {
+            GiaoDichDTO dto = new GiaoDichDTO();
+            dto.setIdGiaoDich(entity.getId());
+            
+            if (entity.getLoaiGiaoDich() != null) {
+                dto.setLoaiGiaoDich(entity.getLoaiGiaoDich().name()); 
             }
+            
+            dto.setSoTien(entity.getSoTien());
+            
+            if (entity.getNgayThucHien() != null) {
+                dto.setNgayGD(entity.getNgayThucHien()); 
+            }
+            
+            // Safe handling of lazy loaded relationships
+            try {
+                if (entity.getMoSoTietKiem() != null) {
+                    dto.setMaSoMoTietKiem(entity.getMoSoTietKiem().getMaMoSo());
+                    dto.setTenSoMoTietKiem(entity.getMoSoTietKiem().getTenSoMo());
+                    
+                    if (entity.getMoSoTietKiem().getNguoiDung() != null) {
+                        dto.setMaKhachHang(entity.getMoSoTietKiem().getNguoiDung().getMaND());
+                        dto.setTenKhachHang(entity.getMoSoTietKiem().getNguoiDung().getTenND());
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Error loading MoSoTietKiem data for transaction {}: {}", entity.getId(), e.getMessage());
+            }
+            
+            try {
+                if (entity.getSanPhamSoTietKiem() != null) {
+                    dto.setTenSanPhamSoTietKiem(entity.getSanPhamSoTietKiem().getTenSo());
+                }
+            } catch (Exception e) {
+                logger.warn("Error loading SanPhamSoTietKiem data for transaction {}: {}", entity.getId(), e.getMessage());
+            }
+            
+            return dto;
+        } catch (Exception e) {
+            logger.error("Error converting GiaoDich to DTO for ID {}: {}", entity.getId(), e.getMessage());
+            return null;
         }
-        if (entity.getSanPhamSoTietKiem() != null) {
-            dto.setTenSanPhamSoTietKiem(entity.getSanPhamSoTietKiem().getTenSo());
-        }
-        // dto.setMaGiaoDichString(String.format("GD%06d", entity.getId())); // Nếu bạn muốn có string ID
-        return dto;
     }
 }
