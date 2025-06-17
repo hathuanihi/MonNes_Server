@@ -66,4 +66,8 @@ public interface MoSoTietKiemRepository extends JpaRepository<MoSoTietKiem, Inte
     List<MoSoTietKiem> findBySoTietKiemSanPham_KyHanGreaterThanAndTrangThaiAndNgayTraLaiKeTiepLessThanEqual(
         Integer kyHan, MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayTraLaiKeTiep);
 
+    // New methods for BM5.2 monthly report
+    Long countByNgayMo(LocalDate ngayMo);
+    
+    Long countByTrangThaiAndNgayMo(MoSoTietKiem.TrangThaiMoSo trangThai, LocalDate ngayMo);
 }

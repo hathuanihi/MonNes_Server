@@ -122,4 +122,14 @@ public interface GiaoDichRepository extends JpaRepository<GiaoDich, Long>, JpaSp
                "ORDER BY g.ngayThucHien DESC")
         org.springframework.data.domain.Page<GiaoDich> findAllWithDetails(Pageable pageable);
 
+        // New methods for BM5.1 and BM5.2 reports
+        List<GiaoDich> findByNgayThucHienAndLoaiGiaoDich(LocalDate ngayThucHien, TransactionType loaiGiaoDich);
+        
+        @Query("SELECT g FROM GiaoDich g WHERE g.ngayThucHien = :ngayThucHien " +
+               "AND g.loaiGiaoDich = :loaiGiaoDich " +
+               "AND g.moSoTietKiem.soTietKiemSanPham.maSo = :productId")
+        List<GiaoDich> findByNgayThucHienAndLoaiGiaoDichAndProductId(
+                @Param("ngayThucHien") LocalDate ngayThucHien,
+                @Param("loaiGiaoDich") TransactionType loaiGiaoDich,
+                @Param("productId") Integer productId);
 }

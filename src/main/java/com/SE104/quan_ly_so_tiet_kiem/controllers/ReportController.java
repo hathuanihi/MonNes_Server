@@ -1,5 +1,7 @@
 package com.SE104.quan_ly_so_tiet_kiem.controllers;
 
+import com.SE104.quan_ly_so_tiet_kiem.dto.DailyReportDTO;
+import com.SE104.quan_ly_so_tiet_kiem.dto.MonthlyReportDTO;
 import com.SE104.quan_ly_so_tiet_kiem.dto.TransactionReportDTO;
 import com.SE104.quan_ly_so_tiet_kiem.security.CustomUserDetails;
 import com.SE104.quan_ly_so_tiet_kiem.service.ReportService;
@@ -164,12 +166,145 @@ public class ReportController {
         }
     }
 
+    // ========== BM5.1 - Báo cáo doanh số hoạt động ngày ==========
+    
+    @GetMapping("/daily")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get daily report data (BM5.1)", description = "Get daily activity report for admin")
+    public ResponseEntity<List<DailyReportDTO>> getDailyReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate reportDate) {
+        
+        logger.info("Admin requesting daily report for {}", reportDate);
+        List<DailyReportDTO> report = reportService.getDailyReport(reportDate);
+        return ResponseEntity.ok(report);
+    }
+
+    @GetMapping("/daily/export/pdf")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Export daily report to PDF (BM5.1)", description = "Generate PDF daily report for admin")
+    public ResponseEntity<byte[]> exportDailyReportToPDF(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate reportDate) {
+        
+        logger.info("Admin exporting daily report to PDF for {}", reportDate);
+        
+        try {
+            byte[] pdfBytes = reportService.generateDailyReportPDF(reportDate);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", 
+                    generateFileName("daily-report", reportDate, reportDate, "pdf"));
+            headers.setContentLength(pdfBytes.length);
+            
+            return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error generating daily PDF report", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/daily/export/excel")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Export daily report to Excel (BM5.1)", description = "Generate Excel daily report for admin")
+    public ResponseEntity<byte[]> exportDailyReportToExcel(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate reportDate) {
+        
+        logger.info("Admin exporting daily report to Excel for {}", reportDate);
+        
+        try {
+            byte[] excelBytes = reportService.generateDailyReportExcel(reportDate);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", 
+                    generateFileName("daily-report", reportDate, reportDate, "xlsx"));
+            headers.setContentLength(excelBytes.length);
+            
+            return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error generating daily Excel report", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // ========== BM5.2 - Báo cáo mở/đóng sổ tháng ==========
+    
+    @GetMapping("/monthly")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get monthly report data (BM5.2)", description = "Get monthly open/close report for admin")
+    public ResponseEntity<List<MonthlyReportDTO>> getMonthlyReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+        
+        logger.info("Admin requesting monthly report from {} to {}", fromDate, toDate);
+        List<MonthlyReportDTO> report = reportService.getMonthlyReport(fromDate, toDate);
+        return ResponseEntity.ok(report);
+    }
+
+    @GetMapping("/monthly/export/pdf")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Export monthly report to PDF (BM5.2)", description = "Generate PDF monthly report for admin")
+    public ResponseEntity<byte[]> exportMonthlyReportToPDF(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+        
+        logger.info("Admin exporting monthly report to PDF from {} to {}", fromDate, toDate);
+        
+        try {
+            byte[] pdfBytes = reportService.generateMonthlyReportPDF(fromDate, toDate);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", 
+                    generateFileName("monthly-report", fromDate, toDate, "pdf"));
+            headers.setContentLength(pdfBytes.length);
+            
+            return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error generating monthly PDF report", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/monthly/export/excel")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Export monthly report to Excel (BM5.2)", description = "Generate Excel monthly report for admin")
+    public ResponseEntity<byte[]> exportMonthlyReportToExcel(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+        
+        logger.info("Admin exporting monthly report to Excel from {} to {}", fromDate, toDate);
+        
+        try {
+            byte[] excelBytes = reportService.generateMonthlyReportExcel(fromDate, toDate);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", 
+                    generateFileName("monthly-report", fromDate, toDate, "xlsx"));
+            headers.setContentLength(excelBytes.length);
+            
+            return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error generating monthly Excel report", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     private String generateFileName(String prefix, LocalDate fromDate, LocalDate toDate, String extension) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         return String.format("%s_%s_to_%s.%s", 
                 prefix, 
                 fromDate.format(formatter), 
                 toDate.format(formatter), 
+                extension);
+    }
+
+    private String generateDailyFileName(String prefix, LocalDate reportDate, String extension) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        return String.format("%s_%s.%s", 
+                prefix, 
+                reportDate.format(formatter), 
                 extension);
     }
 }

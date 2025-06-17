@@ -1,5 +1,7 @@
 package com.SE104.quan_ly_so_tiet_kiem.service;
 
+import com.SE104.quan_ly_so_tiet_kiem.dto.DailyReportDTO;
+import com.SE104.quan_ly_so_tiet_kiem.dto.MonthlyReportDTO;
 import com.SE104.quan_ly_so_tiet_kiem.dto.TransactionReportDTO;
 import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.font.PdfFont;
@@ -13,16 +15,22 @@ import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.itextpdf.io.font.constants.StandardFonts;
+import com.itextpdf.kernel.geom.PageSize;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
 public class PDFReportService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(PDFReportService.class);
 
     public byte[] generateTransactionReport(List<TransactionReportDTO> transactions, LocalDate fromDate, LocalDate toDate) {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
@@ -140,7 +148,46 @@ public class PDFReportService {
             throw new RuntimeException("Error generating PDF report", e);
         }
     }    private String formatCurrency(BigDecimal amount) {
-        return String.format("%,.0f VND", amount);
+        if (amount.compareTo(BigDecimal.ZERO) == 0) {
+            return "0 VND";
+        }
+        DecimalFormat formatter = new DecimalFormat("#,###.00");
+        String formatted = formatter.format(amount);
+        // Remove trailing .00 if it's a whole number
+        if (formatted.endsWith(".00")) {
+            formatted = formatted.substring(0, formatted.length() - 3);
+        }
+        return formatted + " VND";
+    }private Cell createHeaderCell(String content) {
+        try {
+            return new Cell()
+                .add(new Paragraph(removeDiacritics(content)))
+                .setFont(PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD))
+                .setBackgroundColor(ColorConstants.LIGHT_GRAY)
+                .setTextAlignment(TextAlignment.CENTER);
+        } catch (Exception e) {
+            return new Cell()
+                .add(new Paragraph(removeDiacritics(content)))
+                .setBackgroundColor(ColorConstants.LIGHT_GRAY)
+                .setTextAlignment(TextAlignment.CENTER);
+        }
+    }
+
+    private Cell createDataCell(String content) {
+        try {
+            return new Cell()
+                .add(new Paragraph(content))
+                .setFont(PdfFontFactory.createFont(StandardFonts.HELVETICA))
+                .setTextAlignment(TextAlignment.CENTER);
+        } catch (Exception e) {
+            return new Cell()
+                .add(new Paragraph(content))
+                .setTextAlignment(TextAlignment.CENTER);
+        }
+    }
+
+    private String removeDiacritics(String text) {
+        return removeVietnameseDiacritics(text);
     }
 
     // Hàm chuyển đổi tiếng Việt có dấu thành không dấu
@@ -158,7 +205,7 @@ public class PDFReportService {
             "ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ", "A",
             "ÈÉẸẺẼÊỀẾỆỂỄ", "E",
             "ÌÍỊỈĨ", "I", 
-            "ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ", "O",
+            "ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỬ", "O",
             "ÙÚỤỦŨƯỪỨỰỬỮ", "U",
             "ỲÝỴỶỸ", "Y",
             "Đ", "D"
@@ -173,5 +220,113 @@ public class PDFReportService {
             }
         }
         return result;
+    }
+
+    /**
+     * Generate BM5.1 - Báo cáo doanh số hoạt động ngày
+     */
+    public byte[] generateDailyReport(List<DailyReportDTO> reportData, LocalDate reportDate) {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            PdfWriter writer = new PdfWriter(baos);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf, PageSize.A4);
+              // Title
+            Paragraph title = new Paragraph("BM5.1 - Bao Cao Doanh So Hoat Dong Ngay")
+                    .setFont(PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD))
+                    .setFontSize(16)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(10);
+            document.add(title);
+            
+            // Date
+            Paragraph dateInfo = new Paragraph("Ngay: " + reportDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                    .setFont(PdfFontFactory.createFont(StandardFonts.HELVETICA))
+                    .setFontSize(12)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(20);
+            document.add(dateInfo);
+            
+            // Table
+            Table table = new Table(UnitValue.createPercentArray(new float[]{1, 4, 2, 2, 2}));
+            table.setWidth(UnitValue.createPercentValue(100));
+              // Headers
+            table.addHeaderCell(createHeaderCell("STT"));
+            table.addHeaderCell(createHeaderCell("Loai Tiet Kiem"));
+            table.addHeaderCell(createHeaderCell("Tong Thu"));
+            table.addHeaderCell(createHeaderCell("Tong Chi"));
+            table.addHeaderCell(createHeaderCell("Chenh Lech"));
+            
+            // Data rows
+            for (DailyReportDTO item : reportData) {
+                table.addCell(createDataCell(item.getStt().toString()));
+                table.addCell(createDataCell(removeDiacritics(item.getLoaiTietKiem())));
+                table.addCell(createDataCell(formatCurrency(item.getTongThu())));
+                table.addCell(createDataCell(formatCurrency(item.getTongChi())));
+                table.addCell(createDataCell(formatCurrency(item.getChenhLech())));
+            }
+            
+            document.add(table);
+            document.close();
+            
+            return baos.toByteArray();
+        } catch (Exception e) {
+            logger.error("Error generating daily report PDF", e);
+            throw new RuntimeException("Error generating daily report PDF", e);
+        }
+    }
+
+    /**
+     * Generate BM5.2 - Báo cáo mở/đóng sổ tháng
+     */
+    public byte[] generateMonthlyReport(List<MonthlyReportDTO> reportData, LocalDate fromDate, LocalDate toDate) {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            PdfWriter writer = new PdfWriter(baos);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf, PageSize.A4);
+              // Title
+            Paragraph title = new Paragraph("BM5.2 - Bao Cao Mo/Dong So Thang")
+                    .setFont(PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD))
+                    .setFontSize(16)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(10);
+            document.add(title);
+            
+            // Date range
+            Paragraph dateInfo = new Paragraph("Tu ngay: " + fromDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + 
+                                             " den ngay: " + toDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                    .setFont(PdfFontFactory.createFont(StandardFonts.HELVETICA))
+                    .setFontSize(12)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(20);
+            document.add(dateInfo);
+            
+            // Table
+            Table table = new Table(UnitValue.createPercentArray(new float[]{1, 3, 2, 2, 2}));
+            table.setWidth(UnitValue.createPercentValue(100));
+            
+            // Headers
+            table.addHeaderCell(createHeaderCell("STT"));
+            table.addHeaderCell(createHeaderCell("Ngay"));
+            table.addHeaderCell(createHeaderCell("So So Mo"));
+            table.addHeaderCell(createHeaderCell("So So Dong"));
+            table.addHeaderCell(createHeaderCell("Chenh Lech"));
+            
+            // Data rows
+            for (MonthlyReportDTO item : reportData) {
+                table.addCell(createDataCell(item.getStt().toString()));
+                table.addCell(createDataCell(item.getNgay()));
+                table.addCell(createDataCell(item.getSoSoMo().toString()));
+                table.addCell(createDataCell(item.getSoSoDong().toString()));
+                table.addCell(createDataCell(item.getChenhLech().toString())); // Số lượng, không phải tiền tệ
+            }
+            
+            document.add(table);
+            document.close();
+            
+            return baos.toByteArray();
+        } catch (Exception e) {
+            logger.error("Error generating monthly report PDF", e);
+            throw new RuntimeException("Error generating monthly report PDF", e);
+        }
     }
 }

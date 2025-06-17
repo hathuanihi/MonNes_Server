@@ -1,9 +1,13 @@
 package com.SE104.quan_ly_so_tiet_kiem.service;
 
+import com.SE104.quan_ly_so_tiet_kiem.dto.DailyReportDTO;
+import com.SE104.quan_ly_so_tiet_kiem.dto.MonthlyReportDTO;
 import com.SE104.quan_ly_so_tiet_kiem.dto.TransactionReportDTO;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -14,6 +18,8 @@ import java.util.List;
 
 @Service
 public class ExcelReportService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(ExcelReportService.class);
 
     public byte[] generateTransactionReport(List<TransactionReportDTO> transactions, LocalDate fromDate, LocalDate toDate) {
         try (Workbook workbook = new XSSFWorkbook();
@@ -28,7 +34,7 @@ public class ExcelReportService {
             CellStyle currencyStyle = createCurrencyStyle(workbook);
             CellStyle totalStyle = createTotalStyle(workbook);
 
-            int rowNum = 0;            // Title
+            int rowNum = 0;           
             Row titleRow = sheet.createRow(rowNum++);
             Cell titleCell = titleRow.createCell(0);
             titleCell.setCellValue("BÁO CÁO GIAO DỊCH");
@@ -43,7 +49,7 @@ public class ExcelReportService {
             sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 5));
 
             // Empty row
-            rowNum++;            // Headers - Bỏ cột mô tả
+            rowNum++;           
             Row headerRow = sheet.createRow(rowNum++);
             String[] headers = {"STT", "Ngày GD", "Loại GD", "Số tiền", "Mã số", "Khách hàng"};
             for (int i = 0; i < headers.length; i++) {
@@ -112,11 +118,171 @@ public class ExcelReportService {
         }
     }
 
-    private CellStyle createTitleStyle(Workbook workbook) {
+    /**
+     * Generate BM5.1 - Báo cáo doanh số hoạt động ngày
+     */
+    public byte[] generateDailyReport(List<DailyReportDTO> reportData, LocalDate reportDate) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            
+            Sheet sheet = workbook.createSheet("Báo cáo doanh số hoạt động ngày");
+            
+            // Title
+            Row titleRow = sheet.createRow(0);
+            Cell titleCell = titleRow.createCell(0);
+            titleCell.setCellValue("BM5.1 - Báo Cáo Doanh Số Hoạt Động Ngày");
+            titleCell.setCellStyle(createTitleStyle(workbook));
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 4));
+            
+            // Date
+            Row dateRow = sheet.createRow(1);
+            Cell dateCell = dateRow.createCell(0);
+            dateCell.setCellValue("Ngày: " + reportDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+            dateCell.setCellStyle(createDateStyle(workbook));
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 4));
+            
+            // Headers
+            Row headerRow = sheet.createRow(3);
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            
+            String[] headers = {"STT", "Loại Tiết Kiệm", "Tổng Thu", "Tổng Chi", "Chênh Lệch"};
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            
+            // Data rows
+            CellStyle dataStyle = createDataStyle(workbook);
+            CellStyle currencyStyle = createCurrencyStyle(workbook);
+            
+            int rowIndex = 4;
+            for (DailyReportDTO item : reportData) {
+                Row row = sheet.createRow(rowIndex++);
+                
+                Cell sttCell = row.createCell(0);
+                sttCell.setCellValue(item.getStt());
+                sttCell.setCellStyle(dataStyle);
+                
+                Cell loaiTKCell = row.createCell(1);
+                loaiTKCell.setCellValue(item.getLoaiTietKiem());
+                loaiTKCell.setCellStyle(dataStyle);
+                
+                Cell tongThuCell = row.createCell(2);
+                tongThuCell.setCellValue(item.getTongThu().doubleValue());
+                tongThuCell.setCellStyle(currencyStyle);
+                
+                Cell tongChiCell = row.createCell(3);
+                tongChiCell.setCellValue(item.getTongChi().doubleValue());
+                tongChiCell.setCellStyle(currencyStyle);
+                
+                Cell chenhLechCell = row.createCell(4);
+                chenhLechCell.setCellValue(item.getChenhLech().doubleValue());
+                chenhLechCell.setCellStyle(currencyStyle);
+            }
+            
+            // Auto-size columns
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            
+            workbook.write(baos);
+            return baos.toByteArray();
+            
+        } catch (Exception e) {
+            logger.error("Error generating daily report Excel", e);
+            throw new RuntimeException("Error generating daily report Excel", e);
+        }
+    }
+
+    /**
+     * Generate BM5.2 - Báo cáo mở/đóng sổ tháng
+     */
+    public byte[] generateMonthlyReport(List<MonthlyReportDTO> reportData, LocalDate fromDate, LocalDate toDate) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            
+            Sheet sheet = workbook.createSheet("Báo cáo mở-đóng sổ tháng");
+            
+            // Title
+            Row titleRow = sheet.createRow(0);
+            Cell titleCell = titleRow.createCell(0);
+            titleCell.setCellValue("BM5.2 - Báo Cáo Mở/Đóng Sổ Tháng");
+            titleCell.setCellStyle(createTitleStyle(workbook));
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 4));
+            
+            // Date range
+            Row dateRow = sheet.createRow(1);
+            Cell dateCell = dateRow.createCell(0);
+            dateCell.setCellValue("Từ ngày: " + fromDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + 
+                               " đến ngày: " + toDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+            dateCell.setCellStyle(createDateStyle(workbook));
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 4));
+            
+            // Headers
+            Row headerRow = sheet.createRow(3);
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            
+            String[] headers = {"STT", "Ngày", "Số Sổ Mở", "Số Sổ Đóng", "Chênh Lệch"};
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            
+            // Data rows
+            CellStyle dataStyle = createDataStyle(workbook);
+            CellStyle numberStyle = createNumberStyle(workbook);
+            
+            int rowIndex = 4;
+            for (MonthlyReportDTO item : reportData) {
+                Row row = sheet.createRow(rowIndex++);
+                
+                Cell sttCell = row.createCell(0);
+                sttCell.setCellValue(item.getStt());
+                sttCell.setCellStyle(dataStyle);
+                
+                Cell ngayCell = row.createCell(1);
+                ngayCell.setCellValue(item.getNgay());
+                ngayCell.setCellStyle(dataStyle);
+                
+                Cell soSoMoCell = row.createCell(2);
+                soSoMoCell.setCellValue(item.getSoSoMo());
+                soSoMoCell.setCellStyle(numberStyle);
+                
+                Cell soSoDongCell = row.createCell(3);
+                soSoDongCell.setCellValue(item.getSoSoDong());
+                soSoDongCell.setCellStyle(numberStyle);                Cell chenhLechCell = row.createCell(4);
+                chenhLechCell.setCellValue(item.getChenhLech()); // Số lượng (Integer)
+                chenhLechCell.setCellStyle(numberStyle);
+            }
+            
+            // Auto-size columns
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            
+            workbook.write(baos);
+            return baos.toByteArray();
+            
+        } catch (Exception e) {
+            logger.error("Error generating monthly report Excel", e);
+            throw new RuntimeException("Error generating monthly report Excel", e);
+        }
+    }    private CellStyle createTitleStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         Font font = workbook.createFont();
         font.setBold(true);
         font.setFontHeightInPoints((short) 16);
+        style.setFont(font);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        return style;
+    }
+
+    private CellStyle createDateStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setFontHeightInPoints((short) 12);
         style.setFont(font);
         style.setAlignment(HorizontalAlignment.CENTER);
         return style;
@@ -145,12 +311,10 @@ public class ExcelReportService {
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
         return style;
-    }
-
-    private CellStyle createCurrencyStyle(Workbook workbook) {
+    }    private CellStyle createCurrencyStyle(Workbook workbook) {
         CellStyle style = createDataStyle(workbook);
         DataFormat format = workbook.createDataFormat();
-        style.setDataFormat(format.getFormat("#,##0"));
+        style.setDataFormat(format.getFormat("#,##0\" VND\""));
         style.setAlignment(HorizontalAlignment.RIGHT);
         return style;
     }
@@ -166,6 +330,19 @@ public class ExcelReportService {
         DataFormat format = workbook.createDataFormat();
         style.setDataFormat(format.getFormat("#,##0"));
         style.setAlignment(HorizontalAlignment.RIGHT);
+        return style;
+    }    private CellStyle createNumberStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+        
+        DataFormat format = workbook.createDataFormat();
+        style.setDataFormat(format.getFormat("0"));
+        
         return style;
     }
 }
