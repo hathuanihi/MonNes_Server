@@ -22,7 +22,9 @@ public class ClockConfig {
     private static String currentClockDescription = "System Clock (Default)";
 
     @Value("${app.fixed.clock.instant:}") 
-    private String fixedInstantStringFromProperties;    @Value("${app.fixed.clock.zone:Asia/Ho_Chi_Minh}")
+    private String fixedInstantStringFromProperties;    
+    
+    @Value("${app.fixed.clock.zone:Asia/Ho_Chi_Minh}")
     private String fixedZoneStringFromProperties;
 
     @Bean

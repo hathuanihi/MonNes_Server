@@ -18,7 +18,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.Date; 
 
 @Service
@@ -281,6 +280,16 @@ public class PhieuRutTienService {
                        moSoTietKiem.getMaMoSo(), ngayRutTien, ngayDaoHan);
         }
 
+        // Check minimum days requirement from product settings
+        Integer soNgayGuiToiThieu = sanPham.getSoNgayGuiToiThieuDeRut();
+        if (soNgayGuiToiThieu == null) {
+            soNgayGuiToiThieu = 1; // Default minimum 1 day
+        }
+        
+        if (ngayRutTien.isBefore(ngayMo.plusDays(soNgayGuiToiThieu))) {
+            throw new IllegalArgumentException("Không thể rút tiền trước " + soNgayGuiToiThieu + " ngày kể từ ngày mở sổ. Ngày sớm nhất có thể rút: " + ngayMo.plusDays(soNgayGuiToiThieu));
+        }
+
         logger.info("Term deposit validation passed for account ID {}", moSoTietKiem.getMaMoSo());
     }
 
@@ -303,9 +312,14 @@ public class PhieuRutTienService {
         // Non-term deposit specific validations
         LocalDate ngayMo = moSoTietKiem.getNgayMo();
         
-        // Check if account has been open for minimum period (e.g., 1 day)
-        if (ngayRutTien.isBefore(ngayMo.plusDays(1))) {
-            throw new IllegalArgumentException("Không thể rút tiền trong ngày đầu mở sổ tiết kiệm");
+        // Check minimum days requirement from product settings
+        Integer soNgayGuiToiThieu = sanPham.getSoNgayGuiToiThieuDeRut();
+        if (soNgayGuiToiThieu == null) {
+            soNgayGuiToiThieu = 1; // Default minimum 1 day
+        }
+        
+        if (ngayRutTien.isBefore(ngayMo.plusDays(soNgayGuiToiThieu))) {
+            throw new IllegalArgumentException("Không thể rút tiền trước " + soNgayGuiToiThieu + " ngày kể từ ngày mở sổ. Ngày sớm nhất có thể rút: " + ngayMo.plusDays(soNgayGuiToiThieu));
         }
 
         logger.info("Non-term deposit validation passed for account ID {}", moSoTietKiem.getMaMoSo());

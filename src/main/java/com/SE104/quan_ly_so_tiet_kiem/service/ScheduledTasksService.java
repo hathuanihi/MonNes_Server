@@ -46,7 +46,9 @@ public class ScheduledTasksService {
         this.interestService = interestService;
         this.dashboardService = dashboardService;
         this.nguoiDungRepository = nguoiDungRepository;
-    }    @Scheduled(cron = "0 5 0 * * ?")
+    }    
+
+    @Scheduled(cron = "0 0 0 * * ?")
     @Transactional
     public void dailyAccountProcessing() {
         try {
@@ -54,9 +56,6 @@ public class ScheduledTasksService {
             logger.info("Cron job triggered at system time: {}", LocalDate.now(this.clock));
             logger.info("Running daily account processing for date: {}", today);
 
-            // ====================================================================
-            // PHẦN 1: XỬ LÝ ĐÁO HẠN CHO SỔ CÓ KỲ HẠN
-            // ====================================================================
             logger.info("Starting term deposit maturity processing for {}", today);
             List<MoSoTietKiem> termAccountsMaturing = moSoTietKiemRepository.findByNgayDaoHanAndTrangThai(
                 today, MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG);
@@ -70,9 +69,6 @@ public class ScheduledTasksService {
                 }
             }
 
-            // ====================================================================
-            // PHẦN 2: XỬ LÝ LÃI CHO SỔ ĐÃ ĐÁO HẠN (LÃI SUẤT 0.5%)
-            // ====================================================================
             logger.info("Starting overdue interest processing for {}", today);
             List<MoSoTietKiem> overdueAccounts = moSoTietKiemRepository.findByTrangThaiAndNgayTraLaiKeTiepLessThanEqual(
                 MoSoTietKiem.TrangThaiMoSo.DA_DAO_HAN, today);
@@ -86,9 +82,6 @@ public class ScheduledTasksService {
                 }
             }
 
-            // ====================================================================
-            // PHẦN 3: XỬ LÝ LÃI CHO SỔ KHÔNG KỲ HẠN
-            // ====================================================================
             logger.info("Starting non-term account interest processing for {}", today);
             List<MoSoTietKiem> nonTermAccounts = moSoTietKiemRepository.findByTrangThaiAndNgayTraLaiKeTiepLessThanEqualAndSoTietKiemSanPham_KyHanIsNull(
                 MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG, today);
@@ -102,9 +95,6 @@ public class ScheduledTasksService {
                 }
             }
 
-            // ====================================================================
-            // PHẦN 4: XỬ LÝ LÃI CHO SỔ CÓ KỲ HẠN CHƯA ĐÁO HẠN
-            // ====================================================================
             logger.info("Starting term account interest processing for {}", today);
             List<MoSoTietKiem> activeTermAccounts = moSoTietKiemRepository.findByTrangThaiAndNgayTraLaiKeTiepLessThanEqualAndSoTietKiemSanPham_KyHanIsNotNull(
                 MoSoTietKiem.TrangThaiMoSo.DANG_HOAT_DONG, today);
@@ -125,22 +115,19 @@ public class ScheduledTasksService {
             // PHẦN THỐNG KÊ MỚI
             // ====================================================================
 
-            // 5. Chạy thống kê toàn hệ thống
             logger.info("Starting system-wide statistics generation for {}", today);
             try {
                 DashboardSummaryDTO systemSummary = dashboardService.getSystemWideSummary(today);
                 logger.info("System-wide Summary for {}: Total Balance = {}, Total Active Accounts = {}, Deposits This Month = {}, Withdrawals This Month = {}",
                     today,
-                    systemSummary.getTongSoDuTatCaSoCuaUser(), // Sử dụng getter tương ứng
-                    systemSummary.getSoLuongSoTietKiemDangHoatDong(), // Sử dụng getter tương ứng
+                    systemSummary.getTongSoDuTatCaSoCuaUser(), 
+                    systemSummary.getSoLuongSoTietKiemDangHoatDong(), 
                     systemSummary.getTongTienDaNapThangNay(),
                     systemSummary.getTongTienDaRutThangNay());
-                // Bạn có thể lưu kết quả này vào DB nếu cần
             } catch (Exception e) {
                 logger.error("Error during system-wide statistics generation: {}", e.getMessage(), e);
             }
 
-            // 6. Chạy thống kê cho từng người dùng (Tùy chọn)
             logger.info("Starting user-specific statistics generation for all users.");
             List<NguoiDung> allUsers = nguoiDungRepository.findAll();
             logger.info("Found {} users to process for statistics.", allUsers.size());
@@ -154,7 +141,6 @@ public class ScheduledTasksService {
                         userSummary.getSoLuongSoTietKiemDangHoatDong(),
                         userSummary.getTongTienDaNapThangNay(),
                         userSummary.getTongTienDaRutThangNay());
-                    // Bạn có thể lưu kết quả này vào DB nếu cần
                 } catch (Exception e) {
                     logger.error("Error generating statistics for user ID {}: {}", user.getMaND(), e.getMessage(), e);
                 }
@@ -168,7 +154,6 @@ public class ScheduledTasksService {
         }
     }
     
-    // ... (Toàn bộ các phương thức còn lại của file ScheduledTasksService.java giữ nguyên) ...
     @Transactional
     protected void processTermDepositMaturity(MoSoTietKiem account, LocalDate maturityDate) {
         logger.info("Processing term deposit maturity for Account ID {} on {}", account.getMaMoSo(), maturityDate);
@@ -181,7 +166,8 @@ public class ScheduledTasksService {
         }
 
         BigDecimal soDuTruocLai = account.getSoDu();
-        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, maturityDate, account.getLaiSuatApDung(), soDuTruocLai, account.getNgayMo());        if (interest.compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal interest = interestService.tinhLaiTichLuyDon(account, maturityDate, account.getLaiSuatApDung(), soDuTruocLai, account.getNgayMo());        
+        if (interest.compareTo(BigDecimal.ZERO) > 0) {
             account.setSoDu(soDuTruocLai.add(interest));
             giaoDichService.saveTransaction(interest, TransactionType.INTEREST, account, maturityDate);
             logger.info("Term Account ID: {}. Balance before: {}. Interest: {}. New Balance: {}",
@@ -225,7 +211,8 @@ public class ScheduledTasksService {
         }
         account.setNgayTraLaiKeTiep(currentDate.plusMonths(1));
         moSoTietKiemRepository.save(account);
-    }    @Transactional
+    }    
+    @Transactional
     protected void accrueInterestForNonTermAccount(MoSoTietKiem account, LocalDate currentDate) {
         // Kiểm tra số ngày gửi tối thiểu (15 ngày) cho sổ không kỳ hạn
         long daysDeposited = ChronoUnit.DAYS.between(account.getNgayMo(), currentDate);
